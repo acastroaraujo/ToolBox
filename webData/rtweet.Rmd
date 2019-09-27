@@ -1,0 +1,83 @@
+---
+title: "rtweet"
+author: "Andrés Castro Araújo"
+output: 
+  html_document:
+    code_folding: show
+    theme: paper
+    toc: yes
+    toc_float: 
+      collapsed: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", comment = "")
+```
+
+## Set up
+
+```{r}
+library(tidyverse)
+library(rtweet)
+source("createToken.R")
+```
+
+
+```{r, eval=FALSE}
+## fun
+
+output <- get_favorites(user = "acastroaraujo", n = 3000)
+output %>% 
+  filter(lubridate::year(created_at) == 2019) %>%
+  count(screen_name, sort = TRUE) %>%
+  top_n(10)
+  
+library(tidytext)
+library(ggwordcloud)
+output %>% 
+  mutate(text = textclean::replace_url(text)) %>% 
+  unnest_tokens(word, text) %>% 
+  filter(lubridate::year(created_at) == 2019, word != "acastroaraujo") %>% 
+  anti_join(filter(stopwordslangs, lang %in% c("en", "es"))) %>% 
+  count(word, sort = TRUE) %>% 
+  top_n(60) %>% 
+  ggplot(aes(label = word, size = n, color = n)) +
+  geom_text_wordcloud() +
+  scale_size_area(max_size = 8) +
+  scale_colour_gradient(low = "steelblue1", high = "tomato") +
+  theme_minimal()
+```
+
+
+
+Para Nico.
+
+```{r, eval=FALSE}
+q <- c(
+  "Claudia Lopez OR @ClaudiaLopez", 
+  "Miguel Uribe Turbay OR @MiguelUribeT", 
+  "Carlos Fernando Galan OR @CarlosFGalan",
+  "Clara Lopez Obregon OR @ClaraLopezObre"
+  )
+
+## Cambiar "n" al
+lunes <- search_tweets2(q, n = 10, type = "recent")
+martes <- search_tweets2(q, n = 10, type = "recent")
+
+## Nota, los metadatos cambian con el tiempo, entonces el mismo tweet parece distinto
+## Ej. 1
+bind_rows(lunes, martes) %>% 
+  distinct() %>% 
+  nrow()
+
+## Ej. 2
+bind_rows(select(lunes, user_id, text), select(martes, user_id, text)) %>% 
+  distinct() %>% 
+  nrow()
+
+readr::write_rds(lunes, paste0("data/", format(Sys.time(), '%d%b%y'), ".rds"))
+
+## usar esto para ver el límite:
+## rate_limit(token, "search_tweets")
+```
+
