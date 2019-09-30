@@ -34,7 +34,8 @@ blockquote {
 ')
 ```
 
->All of this is taken from Hadley Wickham. [__Advanced R__](https://adv-r.hadley.nz). CRC Press, 2019.
+>All of this is taken from: <br/>
+Hadley Wickham. [__Advanced R__](https://adv-r.hadley.nz). CRC Press, 2019.
 
 ****
 
@@ -664,11 +665,9 @@ df[sample(nrow(df)), sample(ncol(df))]
 
 ## Control Flow
 
-<blockquote>
--__Choices__, like `if` statements and `switch()` calls, allow you to run different code depending on the input. 
+>__Choices__, like `if` statements and `switch()` calls, allow you to run different code depending on the input. 
 
--__Loops__, like `for` and `while`, allow you to repeatedly run code, typically with changing options.
-</blockquote>
+>__Loops__, like `for` and `while`, allow you to repeatedly run code, typically with changing options.
 
 ___Choices___
 
@@ -1204,7 +1203,7 @@ sum(1, 2, na_rm = TRUE)
 
 Most functions exit when they return a value (success) or when they throw an error (failure).
 
-EXIT HANDLERS
+# EXIT HANDLERS!!!
 
 
 ___Returns___
@@ -1450,13 +1449,13 @@ Control flow:
 
 ## Environments
 
->The environment is the data structure that powers scoping.
+>The environment is the __data structure__ that powers scoping.
 
->Understanding environments is not necessary for day-to-day use of R. But they are important to understand because they power many important R features like lexical scoping, namespaces, and R6 classes, and interact with evaluation to give you powerful tools for making domain specific languages, like dplyr and ggplot2.
+R environments are the powerhouses behind many important features such as _scoping_, _namespaces_, and _R6 classes_.
 
 >This chapter will use [__`rlang`__](https://rlang.r-lib.org/) functions for working with environments.
 
-```{r}
+```{r, message=FALSE}
 library(rlang)
 ```
 
@@ -1478,7 +1477,7 @@ e1 <- env(
 ```
 
 
-```{r, echo=FALSE, out.width="180px"}
+```{r, echo=FALSE, out.width="300px"}
 knitr::include_graphics(
 "https://d33wubrfki0l68.cloudfront.net/f5dbd02f5235283e78decdd4f18692b40f1ddf42/c5683/diagrams/environments/bindings.png"
 )
@@ -1492,21 +1491,16 @@ In other words, environments in R are similar to hashmaps (or "dictionaries" in 
 e1$d <- e1
 ```
 
-```{r, echo=FALSE, out.width="180px"}
+```{r, echo=FALSE, out.width="300px"}
 knitr::include_graphics(
 "https://d33wubrfki0l68.cloudfront.net/0d41862821d3226c38b73f78a530117349b7344a/abb88/diagrams/environments/loop.png"
 )
 ```
 
-If you try to print an environment, you won't see any useful information (just the memory address).
+If you try to print an environment, you won't see any useful information (just the memory address). Instead, we use `rlang::env_print()`.
 
 ```{r}
 print(e1)
-```
-
-Instead, we use `rlang::env_print()` to see more information.
-
-```{r}
 env_print(e1)
 ```
 
@@ -1533,7 +1527,7 @@ e2a <- env(d = 4, e = 5)
 e2b <- env(e2a, a = 1, b = 2, c = 3)
 ```
 
-```{r, echo=FALSE, out.width="180px"}
+```{r, echo=FALSE, out.width="300px"}
 knitr::include_graphics(
 "https://d33wubrfki0l68.cloudfront.net/336e61bf494a6424484b8b2685a440a7db1566bf/59bce/diagrams/environments/parents.png"
 )
@@ -1555,7 +1549,7 @@ empty_env()
 env_parent(empty_env())
 ```
 
-Actually, the ancestors of every environment will eventually lead back to the empty environment. You can see all ancestors with the `env_parents()` function:
+You can see all ancestors with the `env_parents()` function:
 
 ```{r}
 env_parents(e2b)
@@ -1566,16 +1560,32 @@ e2d <- env(e2c, a = 1, b = 2, c = 3)
 env_parents(e2d)
 ```
 
-`env_parents()` stops when it gets to the global environment; the global environment's ancestors include every attached package, so this provides the most useful information. But we can always override this default behavior by adding an extra argument to the function call.
+`env_parents()` stops when it gets to the global environment; the global environment's ancestors include every attached package, so this provides the most useful information. But we can always override this default behavior by adding an extra argument to the function call. Note that the ancestors of every environment will eventually lead back to the empty environment.
 
 ```{r}
 env_parents(e2b, last = empty_env())
 ```
 
+That's right. Every package attached by `library()` or `require()` becomes one of the parents of the global environment. The last package you attach becomes the global environment's immediate parent. 
 
-ADD EXPLANATION OF SPECIAL ENVIRONEMNTS
+>If you follow all the parents back, you see the order in which every package has been attached. This is known as the __search path__ because all objects in these environments can be found from the top-level interactive workspace. You can see the names of these environments with `base::search()`, or the environments themselves with `rlang::search_envs()`:
 
+```{r}
+base::search()
+rlang::search_envs()
+```
 
+R packages are one example of __special environments__.
+
+The last two environments on the search path will always be the same: `Autoloads` and `package:base`
+
+>The `Autoloads` environment uses delayed bindings to save memory by only loading package objects (like big datasets) when needed.
+
+>The base environment [...] is special because it has to be able to bootstrap the loading of all other packages. You can access it directly with `base_env()`.
+
+```{r}
+base_env() %>% env_names() %>% sample(size = 10)
+```
 
 Ancestors of environments provide the basis for understanding the "super assignment" operator `<<-`.
 
@@ -1588,14 +1598,42 @@ f()
 x
 ```
 
-```{r}
-
-```
-
+>If `<<-` doesn’t find an existing variable, it will create one in the global environment.
 
 ### Other special environments
 
-inverted order 2
+___The function environment___
+
+>A function _binds_ the current environment when it is created. This is called the _function environment_, and is used for lexical scoping. Across computer languages, functions that capture (or enclose) their environments are called __closures__, which is why this term is often used interchangeably with function in R’s documentation.
+
+```{r}
+y <- 1
+f <- function(x) x + y
+fn_env(f)
+fn_env(fn_env)
+```
+
+In these diagrams, functions are represented as rectangles with a rounded end that binds an environment.
+
+```{r, echo=FALSE, out.width="200px"}
+knitr::include_graphics(
+"https://d33wubrfki0l68.cloudfront.net/cd8208b418ecbaf6ace1b6453b93fdf628173e01/68d59/diagrams/environments/binding.png"
+)
+```
+
+>In this case, `f()` binds the environment that binds the name `f` to the function. But that’s not always the case: in the following example `g` is bound in a new environment e, but `g()` binds the global environment. The distinction between binding and being bound by is subtle but important; the difference is how we find `g` versus how `g` finds its variables.
+
+```{r}
+e <- env()
+e$g <- function(x) x + y
+fn_env(e$g)
+```
+
+```{r, echo=FALSE, out.width="200px"}
+"https://d33wubrfki0l68.cloudfront.net/cd32bb2bc59dcfa579b0415ebac271f24c6a85fd/cde86/diagrams/environments/binding-2.png"
+```
+
+
 
 ### Computing with environments
 
