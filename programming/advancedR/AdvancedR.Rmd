@@ -34,8 +34,12 @@ blockquote {
 ')
 ```
 
+<<<<<<< HEAD
 >All of this is taken from: <br/>
 Hadley Wickham. [__Advanced R__](https://adv-r.hadley.nz). CRC Press, 2019.
+=======
+>All of this is taken from Hadley Wickham's &nbsp; [__Advanced R__](https://adv-r.hadley.nz). CRC Press, 2019.
+>>>>>>> 04fb93f5cf0236d83e3041266a9884e1654f742b
 
 ****
 
