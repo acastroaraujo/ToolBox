@@ -34,12 +34,9 @@ blockquote {
 ')
 ```
 
-<<<<<<< HEAD
+
 >All of this is taken from: <br/>
 Hadley Wickham. [__Advanced R__](https://adv-r.hadley.nz). CRC Press, 2019.
-=======
->All of this is taken from Hadley Wickham's &nbsp; [__Advanced R__](https://adv-r.hadley.nz). CRC Press, 2019.
->>>>>>> 04fb93f5cf0236d83e3041266a9884e1654f742b
 
 ****
 
@@ -1634,7 +1631,9 @@ fn_env(e$g)
 ```
 
 ```{r, echo=FALSE, out.width="200px"}
+knitr::include_graphics(
 "https://d33wubrfki0l68.cloudfront.net/cd32bb2bc59dcfa579b0415ebac271f24c6a85fd/cde86/diagrams/environments/binding-2.png"
+)
 ```
 
 
