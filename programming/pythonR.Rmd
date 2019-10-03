@@ -159,14 +159,29 @@ Creating Numpy arrays with `np_array()` and `array_reshape()` might come in hand
 
 ****
 
-Finally, as of now RStudio's environment panel doesn't display the contents of the Python environment. There's no current analog to "magic commands" in Jupyter Notebooks, such as `%whos`, to do this, but these are a couple of ways around this problem:
+Finally, as of now RStudio's environment panel doesn't display the contents of the Python environment. There's no current analog to "magic commands" in Jupyter Notebooks (i.e. `%whos`), but these are a couple of ways around this problem:
 
 - Solution 1: Use the tab-complete feature in RStudio when typing `py$...`
 
-- Solution 2:
+- Solution 2: Use `rlang::env_names(py)`
 
-```{python}
-[print(i) for i in locals().keys() if not i.endswith("__")]
-```
+    ```{r}
+    rlang::env_names(py)
+    ```
 
-- Solution 3: Wait until RStudio creates an addin.
+- Solution 3: Write a function
+    
+    ```{r}
+    print_py_env <- function() {
+      py_obj <<- rlang::env_names(py)
+      py_run_string("r.py_typeof = [str(type(eval(x))) for x in r.py_obj]")
+      py_typeof <- stringr::str_replace(py_typeof, "<class '(.*)'>", "\\1")
+      return(tibble::tibble(py_obj, py_typeof))
+    }
+    
+    print_py_env()
+    ```
+
+    But this creates two additional variables in our global environment...
+
+- Solution 4: Wait until RStudio creates an addin.

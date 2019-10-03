@@ -1204,16 +1204,17 @@ sum(1, 2, na_rm = TRUE)
 
 Most functions exit when they return a value (success) or when they throw an error (failure).
 
-# EXIT HANDLERS!!!
+SOMETIMES EXIT HANDLER
 
+>exit handlers, which allow you to run code when a function exits.
 
 ___Returns___
 
 ```{r}
-j01 <- function() 10            ## implicit
+j01 <- function() 10            ## implicit return
 j01() 
 
-j02 <- function() return(10)    ## explicit
+j02 <- function() return(10)    ## explicit return()
 j02()
 ```
 
@@ -1227,8 +1228,8 @@ j03()
 > To verify that this value does indeed exist, you can explicitly print it or [wrap it in parentheses](https://yihui.name/en/2017/06/top-level-r-expressions/)
 
 ```{r}
-print(j03())
-(j03())
+print(j03())  # explicit printing
+(j03())       # "ghost printing"
 ```
 
 >Alternatively, you can use `withVisible()` to return the value and a visibility flag:
@@ -1237,7 +1238,7 @@ print(j03())
 withVisible(j03())
 ```
 
-The most common function that returns invisibly is the assignment operator `<-`.
+The most common function that returns invisibly is the assignment function `<-`.
 
 ```{r}
 a <- 2
@@ -1266,17 +1267,22 @@ Sometimes a function will need to make temporary changes to the global state, an
 
 ```{r}
 with_dir <- function(dir, code) {
-  old <- setwd(dir)
-  on.exit(setwd(old), add = TRUE)
+  old <- setwd(dir)  ## sets new wd, but saves old one in "old"
+  on.exit(setwd(old), add = TRUE)  ## sets old wd
 
   force(code)
 }
 
-with_dir("../..", getwd())
+with_dir("~", getwd())
 getwd()
+with_dir("..", list.files())
 ```
 
 >The use of `force()` isn’t strictly necessary here as simply referring to code will force its evaluation. However, using `force()` makes it very clear that we are deliberately forcing the execution.
+
+__Note__. `force()` is rarely useful, but plays an important role when working with "function factories".
+
+__Note__. `on.exit()` allows users to work with what Python users know as "context managers". As such, this function is important when setting up connections to databases.
 
 ### Function forms 
 
@@ -1607,6 +1613,14 @@ ___The function environment___
 
 >A function _binds_ the current environment when it is created. This is called the _function environment_, and is used for lexical scoping. Across computer languages, functions that capture (or enclose) their environments are called __closures__, which is why this term is often used interchangeably with function in R’s documentation.
 
+Note that the common error `object of type 'closure' is not subsettable` means that you're probably trying to subset a function instead of a vector.
+
+```{r, error=TRUE}
+mean[[1]]
+```
+
+>You can get the function environment with `rlang::fn_env()`:
+
 ```{r}
 y <- 1
 f <- function(x) x + y
@@ -1614,7 +1628,7 @@ fn_env(f)
 fn_env(fn_env)
 ```
 
-In these diagrams, functions are represented as rectangles with a rounded end that binds an environment.
+In the diagrams drawn by Hadley Wickham, functions are represented as rectangles with a rounded end that binds an environment.
 
 ```{r, echo=FALSE, out.width="200px"}
 knitr::include_graphics(
@@ -1635,6 +1649,41 @@ knitr::include_graphics(
 "https://d33wubrfki0l68.cloudfront.net/cd32bb2bc59dcfa579b0415ebac271f24c6a85fd/cde86/diagrams/environments/binding-2.png"
 )
 ```
+
+___Namespaces___
+
+We have established that attaching a new package with `library()` will change the parent environment of the global environment.
+
+>This seems worrying: doesn’t that mean that the package will find different functions if packages are loaded in a different order? The goal of __namespaces__ is to make sure that this does not happen, and that every package works the same way regardless of what packages are attached by the user.
+
+For example, suppose that we define a new function named `var`. This overwrites the binding to the `stats::var()` function. Namespaces are what keeps this from messing up the `sd()` function, which contains `var()`.
+
+```{r}
+var <- function() "new function"
+sd
+sd(rnorm(100))
+```
+
+R avoids this potential nightmare by carefully distinguishing between _binding_ and _function_ environments.
+
+_Every function in a package is associated with a pair of environments:_ the __package environment__ and the __namespace environment__.
+
+>The package environment is the external interface to the package. It’s how you, the R user, find a function in an attached package or with `::`. Its parent is determined by search path, i.e. the order in which packages have been attached.
+
+>The namespace environment is the internal interface to the package. The package environment controls how we find the function; _the namespace controls how the function finds its variables_.
+
+
+
+
+
+
+
+
+
+
+___The execution environment___
+
+
 
 
 
