@@ -1064,7 +1064,6 @@ There are four main rules in R's lexical scoping:
 
 3. __A fresh start__. Every time a function is called, a new environment is created to host its execution. In other words, is "invocation" is completely independent of each other.
 
-
 4. __Dynamic lookup__. Lexical scoping determines _where_, but not _when_ to look for values. 
 
     >R looks for values when the function is run, not when the function is created. Together, these two properties tell us that the output of a function can differ depending on the objects outside the function’s environment.
@@ -1681,10 +1680,24 @@ _Every function in a package is associated with a pair of environments:_ the __p
 
 
 
+"https://d33wubrfki0l68.cloudfront.net/3184a9827ac2c26c60f65680157241819f55e754/542c2/diagrams/environments/namespace-env.png"
+
+
+
+"https://d33wubrfki0l68.cloudfront.net/fbbfd3b49bdbd3ca1913043233d48454ec27f14e/ae75a/diagrams/environments/namespace.png"
+
+
+
+
+
+
+
+
+
 ___The execution environment___
 
 
-
+Recall _the fresh start principle_, according to which every time a function is called, a new environment is created to host its execution.
 
 
 ### Computing with environments
