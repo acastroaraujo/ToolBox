@@ -4,9 +4,10 @@ author: "andrés castro araújo"
 date: "`r format(Sys.Date(), '%b %d, %Y')`"
 output: 
   html_document: 
+    highlight: tango
     theme: lumen
     toc: yes
-    toc_float: 
+    toc_float:
       collapsed: yes
 ---
 
@@ -30,13 +31,16 @@ blockquote {
     color: #828282;
     border-left: 10px solid #EEE;
 }
+
+code {
+  font-size: 14px;
+}
 </style>
 ')
 ```
 
 
->All of this is taken from: <br/>
-Hadley Wickham. [__Advanced R__](https://adv-r.hadley.nz). CRC Press, 2019.
+>All of this is taken from Hadley Wickham's [__Advanced R__](https://adv-r.hadley.nz). CRC Press, 2019.
 
 ****
 
@@ -50,7 +54,7 @@ Somethings about `R` are different from what you'd expect to see in other progra
 
 - There are three subsetting operators, `[[`, `[`, and `$`, and all of them interact in different ways with different vector types.
 
-- R has aspects of both functional and object-oriented (OO) programming languages.
+- R has aspects of both functional and object-oriented (OO) programming languages. These things are covered in two separate notebooks, but the foundations for both of them are contained here.
 
 FINISH THIS SECTION AFTERWARDS
 
@@ -670,7 +674,7 @@ df[sample(nrow(df)), sample(ncol(df))]
 
 >__Loops__, like `for` and `while`, allow you to repeatedly run code, typically with changing options.
 
-___Choices___
+### Choices
 
 ```{r, eval=FALSE}
 # The basic form of an "if" statement in R
@@ -758,7 +762,7 @@ x_option <- function(x) {
 
 >The last component of a `switch()` should always throw an error, otherwise unmatched inputs will invisibly return `NULL`.
 
-___Loops___
+### Loops
 
 ```{r, eval=FALSE}
 # The basic form of a "loop" in R
@@ -1467,6 +1471,10 @@ library(rlang)
 
 >The `env_` functions in rlang are designed to work with the pipe: all take an environment as the first argument, and many also return an environment. 
 
+Here we learn about __binding__ environments, and _special environments_: __package__, __namespace__, __function__, __execution__, and __caller__ environments. 
+
+We also learn how to work with _environments as data structures_.
+
 ### Basics
 
 To create an environment, we use `rlang::env()`. 
@@ -1670,43 +1678,187 @@ _Every function in a package is associated with a pair of environments:_ the __p
 >The package environment is the external interface to the package. It’s how you, the R user, find a function in an attached package or with `::`. Its parent is determined by search path, i.e. the order in which packages have been attached.
 
 >The namespace environment is the internal interface to the package. The package environment controls how we find the function; _the namespace controls how the function finds its variables_.
+>
+>Every binding in the package environment is also found in the namespace environment; this ensures every function can use every other function in the package.
 
+Every namespace environment has the same set of of ancestors, in accordance with the following figure:
 
-
-
-
-
-
-
-
-
+```{r, echo=FALSE, out.width="400px"}
+knitr::include_graphics(
 "https://d33wubrfki0l68.cloudfront.net/3184a9827ac2c26c60f65680157241819f55e754/542c2/diagrams/environments/namespace-env.png"
+)
+```
 
+>Each namespace has an __imports__ environment that contains bindings to all the functions used by the package. The imports environment is controlled by the package developer with the `NAMESPACE` file.
 
+>Explicitly importing every base function would be tiresome, so the parent of the imports environment is the __base namespace.__ The base namespace contains the same bindings as the base environment, but it has a different parent: [the global environment].
 
+Now we can understand how `sd()` keeps working even after we change the binding for `var()`. When we use `stats::sd()`, R searches for the value of `var()`'s binding in `namespace:stats`.
+
+```{r, echo=FALSE, out.width="400px"}
+knitr::include_graphics(
 "https://d33wubrfki0l68.cloudfront.net/fbbfd3b49bdbd3ca1913043233d48454ec27f14e/ae75a/diagrams/environments/namespace.png"
+)
+```
 
-
-
-
-
-
-
-
+>There’s no direct link between the package and namespace environments; the link is defined by the function environments.
 
 ___The execution environment___
 
+Recall _the fresh start principle_, according to which every time a function is called, a new environment is created to host its execution. This is _the execution environment_, whose parent is the _function environment_.
 
-Recall _the fresh start principle_, according to which every time a function is called, a new environment is created to host its execution.
+Take a look at the following code chunk and ensuing diagram:
 
+```{r}
+h <- function(x) { # 1. Function called with x = x
+  a <- 2           # 2. "a" is bound to value "2"
+  x + a            # 3. Function returns a value
+}
+y <- h(1) # The value "3" is returned, execution environment goes away.
+```
+
+```{r, echo=FALSE, out.width="200px"}
+knitr::include_graphics(
+"https://d33wubrfki0l68.cloudfront.net/862b3606a4a218cc98739b224521b649eeac6082/5d3e9/diagrams/environments/execution.png"
+)
+```
+
+If, for some reason, we don't want the function environment to dissapear, we can always explictly return it.
+
+
+```{r}
+h2 <- function(x) {
+  a <- x * 2
+  rlang::current_env()
+}
+
+e <- h2(2)
+e
+e$x
+e$a
+```
+
+_A brief introduction to function factories_
+
+>Another way to capture it is to return an object with a binding to that environment, like a function. The following example illustrates that idea with a __function factory__, `plus()`. We use that factory to create a function called `plus_one()`.
+
+```{r}
+plus <- function(x) {
+  function(y) x + y
+}
+
+plus_one <- plus(1)
+plus_one
+rlang::fn_env(plus)
+rlang::fn_env(plus_one)
+```
+
+```{r, echo=FALSE, out.width="200px"}
+knitr::include_graphics(
+"https://d33wubrfki0l68.cloudfront.net/853b74c3293fae253c978b73c55f3d0531d746c5/6ffd5/diagrams/environments/closure.png"
+)
+```
+
+And when we call `plus_one()`, its execution environment captures the execution environment of `plus()` as its parent environment:
+
+```{r}
+plus_one(2)
+```
+
+```{r, echo=FALSE, out.width="200px"}
+knitr::include_graphics(
+"https://d33wubrfki0l68.cloudfront.net/66676485e6a22c807c19b0c54c8fda6bd1292531/3526e/diagrams/environments/closure-call.png"
+)
+```
+
+
+### Call stacks
+ 
+The __caller environment__ is the environment from which a function is called; this environment might vary depending on _how_ the function is called. We access the caller environment with `rlang::caller_env()`.
+
+>To fully understand the caller environment we need to discuss two related concepts: the __call stack__, which is made up of __frames__. Executing a function creates two types of context. You’ve learned about one already: the execution environment is a child of the function environment, which is determined by where the function was created. There’s another type of context created by where the function was called: this is called the call stack.
+
+___Call stacks___
+
+The most common way of seeing call stacks in R is by looking at the `traceback()` after an error has occurred. Here, we'll instead use `lobstr::cst()` to print out the __c__all __s__tack __t__ree.
+
+
+```{r}
+f <- function(x) {
+  g(x = 2)
+}
+g <- function(x) {
+  h(x = 3)
+}
+h <- function(x) {
+  lobstr::cst()
+}
+
+f(x = 1)
+```
+
+That is, `cst()` was called from `h()`, which was called from `g()`, which was called from `f()`. Even though we get a glimpse at the tree-like structure of call stacks, this one in particular is very simple: everything happens on a single branch. There are more complicated structures that arise from __lazy evaluation__. 
+
+For example:
+
+```{r}
+a <- function(x) b(x)
+b <- function(x) c(x)
+c <- function(x) x
+
+a(f())
+```
+
+___Frames___
+
+>Each element of the call stack is a __frame__, also known as an _evaluation context_. The frame is an extremely important internal data structure, and R code can only access a small part of the data structure because tampering with it will break R. A frame has three key components:
+
+1. An _expression_ (usually labelled with `expr`) giving the function call. This is what `traceback()` prints out.
+
+2. An _environment_, which is typically the execution environment of a function. There are two main exceptions: the environment of the global frame is the global environment, and calling `eval()` also generates frames, where the environment can be anything.
+
+3. A _parent_, the previous call in the call stack.
+
+>The frame also holds exit handlers created with `on.exit()`, restarts and handlers for the condition system, and which context to `return()` to when a function completes. These are important internal details that are not accessible with R code.
+
+>Looking up variables in the calling stack rather than in the enclosing environment is called __dynamic scoping__. Few languages implement dynamic scoping. This is because dynamic scoping makes it much harder to reason about how a function operates: not only do you need to know how it was defined, you also need to know the context in which it was called.
 
 ### Computing with environments
 
-inverted order 1
+>If you want to operate on every ancestor of an environment, it’s often convenient to write a recursive function. This section shows you how, applying your new knowledge of environments to write a function that given a name, finds the environment `where()` that name is defined, using R’s regular scoping rules [_lexical scoping_].
 
-### Call stacks
+```{r}
+where <- function(name, env = caller_env()) {
+  if (identical(env, empty_env())) {
+    # Base case
+    stop("Can't find ", name, call. = FALSE)
+  } else if (env_has(env, name)) {
+    # Success case
+    env
+  } else {
+    # Recursive case
+    where(name, env_parent(env))
+  }
+}
 
-### Environments as data structures
+where("mean")
+```
+
+
+GO BACK HERE
+
+
+### Exercises
+
+
+
+>_Exercise._ Write a function that lists all the variables defined in the environment in which it was called. It should return the same results as `ls()`.
+
+
+
+
+
+ANSWER GOES HERE !!!
 
 ## Conditions
 
