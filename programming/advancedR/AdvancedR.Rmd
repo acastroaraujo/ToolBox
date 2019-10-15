@@ -4,8 +4,7 @@ author: "andrés castro araújo"
 date: "`r format(Sys.Date(), '%b %d, %Y')`"
 output: 
   html_document: 
-    highlight: tango
-    theme: lumen
+    theme: paper
     toc: yes
     toc_float:
       collapsed: yes
@@ -20,10 +19,7 @@ knitr::opts_chunk$set(echo = TRUE, comment = "", fig.align = "center")
 library(magrittr)
 ```
 
-
-```{r results="asis", echo=FALSE}
-cat('
-<style>
+```{css, echo=FALSE}
 blockquote {
     padding: 10px 20px;
     margin: 0 0 20px;
@@ -32,13 +28,10 @@ blockquote {
     border-left: 10px solid #EEE;
 }
 
-code {
-  font-size: 14px;
+body {
+    font-size: 14px;
 }
-</style>
-')
 ```
-
 
 >All of this is taken from Hadley Wickham's [__Advanced R__](https://adv-r.hadley.nz). CRC Press, 2019.
 
@@ -58,7 +51,7 @@ Somethings about `R` are different from what you'd expect to see in other progra
 
 FINISH THIS SECTION AFTERWARDS
 
-## Copy-on-modify semantics
+### Copy-on-modify semantics
 
 We’ll use the `lobstr` package to dig into the internal representation of R objects.
 
@@ -188,7 +181,7 @@ An important exception with regards to the copy-on-modify semantics occurs with 
 
 >This property is sometimes described as __reference semantics__ because when you modify an environment all existing bindings to that environment continue to have the same reference.
 
-## Vectors
+### Vectors
 
 There are two types of vectors in R:
 
@@ -376,7 +369,7 @@ tibble(
 
 ```
 
-## Subsetting
+### Subsetting
 
 >Subsetting is a natural complement to `str()`. While `str()` shows you all the pieces of any object (its structure), subsetting allows you to pull out the pieces that you’re interested in. 
 
@@ -831,13 +824,11 @@ We use `while` and `repeat` when we need to use loops, but we don't know in adva
 
 Two important ideas:
 
-<blockquote>
-1. Functions are objects, just as vectors are objects.
+>Functions are objects, just as vectors are objects.
 
-2. Functions can be broken down into three components: arguments, body, and environment.
-
-    There are exceptions to every rule, and in this case, there is a small selection of "primitive" base functions that are implemented purely in C.
-</blockquote>
+>Functions can be broken down into three components: arguments, body, and environment.
+>
+>There are exceptions to every rule, and in this case, there is a small selection of "primitive" base functions that are implemented purely in C.
 
 The three parts of any function can be accessed with `formals()`, `body()`, and `environment()`.
 
@@ -1463,17 +1454,15 @@ Control flow:
 
 R environments are the powerhouses behind many important features such as _scoping_, _namespaces_, and _R6 classes_.
 
->This chapter will use [__`rlang`__](https://rlang.r-lib.org/) functions for working with environments.
-
 ```{r, message=FALSE}
 library(rlang)
 ```
 
+>This chapter will use [__`rlang`__](https://rlang.r-lib.org/) functions for working with environments.
+
 >The `env_` functions in rlang are designed to work with the pipe: all take an environment as the first argument, and many also return an environment. 
 
-Here we learn about __binding__ environments, and _special environments_: __package__, __namespace__, __function__, __execution__, and __caller__ environments. 
-
-We also learn how to work with _environments as data structures_.
+Here we learn about __binding__ environments, and _special environments_: __package__, __namespace__, __function__, __execution__, and __caller__ environments. We also learn how to work with _environments as data structures_.
 
 ### Basics
 
@@ -1499,7 +1488,7 @@ knitr::include_graphics(
 
 In other words, environments in R are similar to hashmaps (or "dictionaries" in Python). Environments have __reference semantics__.
 
->unlike most R objects, when you modify them, you modify them in place, and don’t create a copy. One important implication is that environments can contain themselves.
+>...unlike most R objects, when you modify them, you modify them in place, and don’t create a copy. One important implication is that environments can contain themselves.
 
 ```{r}
 e1$d <- e1
@@ -1511,7 +1500,7 @@ knitr::include_graphics(
 )
 ```
 
-If you try to print an environment, you won't see any useful information (just the memory address). Instead, we use `rlang::env_print()`.
+If you try to print an environment, you won't see any useful information (just the memory address). That's why we use `rlang::env_print()`.
 
 ```{r}
 print(e1)
@@ -1521,7 +1510,7 @@ env_print(e1)
 And we use `rlang::env_names()` to get a character vector that gives the current bindings.
 
 ```{r}
-env_names(e1)  ## equivalent to names(e1) as of R 3.2.0
+env_names(e1)  ## equivalent to base::names(e1) as of R 3.2.0
 ```
 
 >The __current environment__, or `current_env()` is the environment in which code is currently executing. When you’re experimenting interactively, that’s usually the global environment, or `global_env()`. The global environment is sometimes called your "workspace", as it’s where all interactive (i.e. outside of a function) computation takes place.
@@ -1530,8 +1519,8 @@ env_names(e1)  ## equivalent to names(e1) as of R 3.2.0
 
 ```{r, error=TRUE}
 current_env()
-identical(global_env(), current_env())
 global_env() == current_env()
+identical(global_env(), current_env())
 ```
 
 >Every environment has a __parent__, another environment. In diagrams, the parent is shown as a small pale blue circle and arrow that points to another environment. The parent is what’s used to implement lexical scoping: if a name is not found in an environment, then R will look in its parent (and so on). You can set the parent environment by supplying an unnamed argument to `env()`. If you don’t supply it, it defaults to the current environment. In the code below, `e2a` is the parent of `e2b`.
@@ -1541,7 +1530,7 @@ e2a <- env(d = 4, e = 5)
 e2b <- env(e2a, a = 1, b = 2, c = 3)
 ```
 
-```{r, echo=FALSE, out.width="300px"}
+```{r, echo=FALSE, out.width="350px"}
 knitr::include_graphics(
 "https://d33wubrfki0l68.cloudfront.net/336e61bf494a6424484b8b2685a440a7db1566bf/59bce/diagrams/environments/parents.png"
 )
@@ -1613,6 +1602,87 @@ x
 ```
 
 >If `<<-` doesn’t find an existing variable, it will create one in the global environment.
+
+___Getting and setting___
+
+>You can get and set elements of an environment with `$` and `[[` in the same way as a list:
+
+```{r}
+e3 <- env(x = 1, y = 2)
+e3[["x"]]
+e3$z <- 3
+e3$z <- 4
+e3[["z"]]
+```
+
+>But you can’t use `[[` with numeric indices, and you can’t use `[`.
+
+Furthermore, if the binding doesn't exist, `$` and `[[` will return a `NULL` value.
+
+```{r}
+e3$w
+```
+
+To get an error (or a default value different from `NULL`) we use `env_get()`.
+
+```{r, error=TRUE}
+env_get(env = e3, nm = "w")
+env_get(e3, "w", default = NA)
+```
+
+We can see whether an environment has a binding or not with `env_has()`.
+
+```{r}
+env_has(e3, "w")
+```
+
+A big difference with respect to lists is that setting an element to `NULL` will not remove it. If we want to remove it, we have to use `env_unbind()`.
+
+```{r}
+e3$a <- NULL
+env_print(e3)
+```
+
+
+****
+
+___Two other ways to add bindings to an environment___
+
+- `env_poke()` takes a `name` (as string) and a `value`. The word "poke" is meant to convey that this function "modifies in place" (i.e. it doesn't copy-on-modify).
+
+    ```{r}
+    env_poke(e3, "w", 1:5)
+    e3$w
+    ```
+
+- `env_bind()` allows you to bind multiple values
+    
+    ```{r}
+    env_bind(e3, a = 10, b = 20)
+    env_names(e3)
+    ```
+    
+Note that `env_bind()` has two more variants: 
+
+>`env_bind_lazy() `creates delayed bindings, which are evaluated the first time they are accessed. Behind the scenes, delayed bindings create promises, so behave in the same way as function arguments.
+
+```{r}
+env_bind_lazy(current_env(), b = {Sys.sleep(2); 1})
+system.time(b)
+system.time(b)
+```
+
+The main purspose of delayed bindings is to provide R users with datasets that behave like they are loaded in memory even though they're not.
+
+>`env_bind_active()` creates active bindings which are re-computed every time they’re accessed:
+
+```{r}
+env_bind_active(current_env(), z1 = function() runif(5))
+str(z1)
+str(z1)
+```
+
+The main purspose of active bindings becomes clear when using the R6 OOP system.
 
 ### Other special environments
 
@@ -1717,7 +1787,7 @@ h <- function(x) { # 1. Function called with x = x
 y <- h(1) # The value "3" is returned, execution environment goes away.
 ```
 
-```{r, echo=FALSE, out.width="200px"}
+```{r, echo=FALSE, out.width="350px"}
 knitr::include_graphics(
 "https://d33wubrfki0l68.cloudfront.net/862b3606a4a218cc98739b224521b649eeac6082/5d3e9/diagrams/environments/execution.png"
 )
@@ -1782,7 +1852,6 @@ ___Call stacks___
 
 The most common way of seeing call stacks in R is by looking at the `traceback()` after an error has occurred. Here, we'll instead use `lobstr::cst()` to print out the __c__all __s__tack __t__ree.
 
-
 ```{r}
 f <- function(x) {
   g(x = 2)
@@ -1844,29 +1913,196 @@ where <- function(name, env = caller_env()) {
 where("mean")
 ```
 
+Note the three cases:
 
-GO BACK HERE
+1. _Base case_: we reach the empty environment without finding a binding, so we throw an error with `stop()`.
 
+2. _Success case_: the name exists in the environment we call.
+
+3. _Recursive case_: the name isn't found in the environment, so we go one level up (i.e. we do the same thing all over again with the environment's parent).
+
+Removing the specifics for `where()`, we get a fairly straightforward template for recursing over environments.
+
+```{r, eval=FALSE}
+f <- function(..., env = caller_env()) {
+  if (identical(env, empty_env())) {
+    # base case
+  } else if (success) {
+    # success case
+  } else {
+    # recursive case
+    f(..., env = env_parent(env))
+  }
+}
+```
 
 ### Exercises
 
+> Modify `where()` to return all environments that contain a binding for name. Carefully think through what type of object the function will need to return.
 
+```{r}
+where2 <- function(name, env = caller_env(), output = list()) {
+  if (identical(env, empty_env())) {
+    # Base case
+    output
+  } else {
+    # Recursive case
+    if (env_has(env, name)) {
+      output <- append(output, env)
+    }
+    where2(name, env_parent(env), output)
+  }
+}
+
+## Looping instead of recursion
+where3 <- function(name, env = caller_env()) {
+  output <- list()
+  for (e in c(env, env_parents(env))) {
+    if (env_has(e, name)) {
+      output <- append(output, e)
+    }
+  }
+  return(output)
+}
+```
+
+> Write a function called `fget()` that finds only function objects. It should have two arguments, name and env, and should obey the regular scoping rules for functions: if there’s an object with a matching name that’s not a function, look in the parent. For an added challenge, also add an inherits argument which controls whether the function recurses up the parents or only looks in one environment.
+
+```{r}
+fget <- function(name, env = caller_env(), inherits = TRUE) {
+
+  if (env_has(env, name) & is.function(env[[name]])) {
+    return(env[[name]])
+  } 
+  
+  if (identical(env, empty_env()) | inherits == FALSE) {
+    stop("Can't find function \"", name, "\"", call. = FALSE)
+  } 
+  
+  # Recursive case
+  fget(name, env_parent(env))
+
+}
+```
 
 >_Exercise._ Write a function that lists all the variables defined in the environment in which it was called. It should return the same results as `ls()`.
 
+```{r, eval=FALSE}
+ls2 <- function(env = caller_env()) { env_names(env) }
+```
 
+>List three ways in which an environment differs from a list
 
-
-
-ANSWER GOES HERE !!!
+1. The elements contained in lists can be extracted with numerical indices using `[[`. The elements contained environments cannot be extracted with numerical indices because they are _unordered_.
+2. Environments have parents.
+3. Environments have reference semantics, which means that they don't copy-on-modify.
 
 ## Conditions
 
+The __condition__ system allows _users_ and _creators_ of functions to communicate with each other.
+
+>The function author __signals__ conditions with functions like `stop()` (for errors), `warning()` (for warnings), and `message()` (for messages), then the function user can __handle__ them with functions like `tryCatch()` and `withCallingHandlers()`.
+
+__Three signals:__
+
+1. _Errors_ are signalled or thrown with `stop()`. We will use `rlang::abort()`, which does the same thing as `stop()` but also has the ability to add additional metadata to the condition object. On the other hand, `stop()` pastes together multiple inputs, while `abort()` does not.
+
+
+    ```{r, error=TRUE}
+    h <- function() abort("This is an error!")
+    h()
+    ```
+    
+    Good error messages tell you what went wrong and point you in the right direction. See [here](https://style.tidyverse.org/error-messages.html) for a few good general principles to follow when writing error messages.
+
+2. _Warnings_ signal that something has gone wrong, but the function has been able to recover and continue. Keep in mind that some R users tend to overuse warnings, and that we would be better off if they were treated as errors.
+
+    We can easily debug warnings by setting `options(warn = 2)` which turns them into errors. We can then use tools like `traceback()` to find the source of the error. Finally, restore the default behaviour with `options(warn = 0)`.
+
+    The rlang equivalent of `warning()` is `rlang::warn()`.
+    
+3. _Messages_ provide the user with relevant information.
+
+    >Good messages are a balancing act: you want to provide just enough information so the user knows what's going on, but not so much that they're overwhelmed.
+
+### Handling conditions
+
+The easiest way to handle conditions in R is simply to __ignore__ them.
+
+- Ignore errors with `try()`
+
+- Ignore warnings with `suppressWarnings()`
+
+- Ignore messages with `suppressMessages()`
+
+These functions supress everything. If we instead want to suppress only a particular subset of well-defined conditions, we use `tryCatch()` and `withCallingHandlers()`. These two functions are known as __condition handlers__.
+
+Handlers are functions that take the signalled condition as their only argument.
+
+> `tryCatch()` defines exiting handlers; after the condition is handled, control returns to the context where `tryCatch()` was called. This makes `tryCatch()` most suitable for working with errors and interrupts, as these have to exit anyway.
+
+> `withCallingHandlers()` defines calling handlers; after the condition is captured control returns to the context where the condition was signalled. This makes it most suitable for working with non-error conditions.
+
+Both functions work with __condition objects__ (i.e. the objects that are created behind the scenes whenever a condition is signalled). These objects become explicit inside the handlers. 
+
+Built-in conditions (as opposed to _custom_ conditions) are lists with two elements:
+
+- `message`, a character vector containing the text to displayed to the user. To extract the message, use `conditionMessage()`.
+
+- `call`, the call which triggered the condition.
+
+The easiest way to see a condition object is to catch one from a signalled condition using `rlang::catch_cnd()`.
+
+```{r}
+cnd <- catch_cnd(stop("An error"))
+str(cnd)
+cnd <- catch_cnd(stop("An error", call. = FALSE))  ## call might be NULL in many situations
+str(cnd)
+```
+
+Note that conditions also have a class attribute, which makes them S3 objects. 
+
+```{r}
+class(cnd)
+```
+
+### `tryCatch()`
+
+```{r, eval=FALSE}
+tryCatch(
+  error = function(cnd) {
+    # code to run when error is thrown
+  },
+  code_to_run_while_handlers_are_active
+)
+```
 
 
 
+```{r}
+tryCatch(
+  error = function() "There",
+  {
+    stop("This code is never run!")
+    message("Here")
+  }
+)
+```
+ 
 
+### `withCallingHandlers()`
 
+```{r, eval=FALSE}
+withCallingHandlers(
+  warning = function(cnd) {
+    # code to run when warning is signalled
+  },
+  message = function(cnd) {
+    # code to run when message is signalled
+  },
+  code_to_run_while_handlers_are_active
+)
+```
 
 
 
