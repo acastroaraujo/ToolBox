@@ -39,17 +39,17 @@ body {
 
 ## Introduction
 
-Somethings about `R` are different from what you'd expect to see in other programming languages. 
+Some things about `R` are different from what you'd expect to see in other programming languages. Here's a non-exhaustive list:
 
-- Copy-on-modify semantics, which makes sense once we really understand the difference between an object and its name.
+1. Copy-on-modify semantics, which refer to the allocation of memory makes sense once we really understand the difference between an object and its name.
 
-- In `R`, _almost_ everything is a vector. And almost everything that happens is a _function call_.
+2. In `R`, _almost_ everything is a vector. And almost everything that happens is a _function call_.
 
-- There are three subsetting operators, `[[`, `[`, and `$`, and all of them interact in different ways with different vector types.
+3. There are three subsetting operators, `[[`, `[`, and `$`, and all of them interact in different ways with different vector types.
 
-- R has aspects of both functional and object-oriented (OO) programming languages. These things are covered in two separate notebooks, but the foundations for both of them are contained here.
+4. R has aspects of both functional and object-oriented (OO) programming languages. These things are covered in two separate notebooks, but the foundations for both of them are contained here.
 
-FINISH THIS SECTION AFTERWARDS
+In this section, we cover copy-on-modify semantics, vectors and subsetting.
 
 ### Copy-on-modify semantics
 
@@ -2005,8 +2005,7 @@ The __condition__ system allows _users_ and _creators_ of functions to communica
 
 __Three signals:__
 
-1. _Errors_ are signalled or thrown with `stop()`. We will use `rlang::abort()`, which does the same thing as `stop()` but also has the ability to add additional metadata to the condition object. On the other hand, `stop()` pastes together multiple inputs, while `abort()` does not.
-
+1. _Errors_ are signalled or thrown with `stop()`. We will use `rlang::abort()`, which does the same thing as `stop()` but also has the ability to add additional metadata to the condition object. On the other hand, `stop()` pastes together multiple inputs, while `abort()` does not (use `paste0()` or `glue::glue()` to compose long error messages).
 
     ```{r, error=TRUE}
     h <- function() abort("This is an error!")
@@ -2035,13 +2034,32 @@ The easiest way to handle conditions in R is simply to __ignore__ them.
 
 - Ignore messages with `suppressMessages()`
 
-These functions supress everything. If we instead want to suppress only a particular subset of well-defined conditions, we use `tryCatch()` and `withCallingHandlers()`. These two functions are known as __condition handlers__.
+```{r}
+## Example 1
+f <- function() {
+  try(log("a")) # This error doesn't stop 10 from printing
+  10
+}
 
-Handlers are functions that take the signalled condition as their only argument.
+f()
 
-> `tryCatch()` defines exiting handlers; after the condition is handled, control returns to the context where `tryCatch()` was called. This makes `tryCatch()` most suitable for working with errors and interrupts, as these have to exit anyway.
+## Example 2
+suppressWarnings({
+  warning("This warning never gets printed!")
+  10
+})
 
-> `withCallingHandlers()` defines calling handlers; after the condition is captured control returns to the context where the condition was signalled. This makes it most suitable for working with non-error conditions.
+```
+
+These functions suppress _everything._ If we instead want to suppress only a particular subset of well-defined conditions, we use `tryCatch()` and `withCallingHandlers()`. Collectively, these functions are known as __condition handlers__.
+
+>Every condition has default behaviour: errors stop execution and return to the top level, warnings are captured and displayed in aggregate, and messages are immediately displayed. Condition handlers allow us to temporarily override or supplement the default behaviour.
+
+_Handlers are functions that take the signalled condition as their only argument._
+
+> `tryCatch()` defines __exiting handlers__; after the condition is handled, control returns to the context where `tryCatch()` was called. This makes `tryCatch()` most suitable for working with errors and interrupts, as these have to exit anyway.
+
+> `withCallingHandlers()` defines __calling handlers__; after the condition is captured control returns to the context where the condition was signalled. This makes it most suitable for working with non-error conditions.
 
 Both functions work with __condition objects__ (i.e. the objects that are created behind the scenes whenever a condition is signalled). These objects become explicit inside the handlers. 
 
@@ -2068,6 +2086,8 @@ class(cnd)
 
 ### `tryCatch()`
 
+Recall that the handler function takes the signalled condition as its only argumenwhich we conventionally name `cnd` or `cond`. Knowing this, the basic form of exit handler is as follows:
+
 ```{r, eval=FALSE}
 tryCatch(
   error = function(cnd) {
@@ -2077,20 +2097,34 @@ tryCatch(
 )
 ```
 
-
+For example:
 
 ```{r}
 tryCatch(
-  error = function() "There",
+  error = function(cnd) { "There" }, 
   {
     stop("This code is never run!")
     message("Here")
   }
 )
+
+f <- function(x) {
+  tryCatch(
+    error = function(cnd) { NA },
+    log(x)
+  )
+}
+
+f("asdf")
 ```
+
+>The protected code is evaluated in the environment of `tryCatch()`, but the handler code is not, because the handlers are functions. This is important to remember if you’re trying to modify objects in the parent environment.
  
+`tryCatch()` can have one other argument: `finally`. It specifies a block of code (not a function) to run regardless of whether the initial expression succeeds or fails. We use this for things like for clean up, deleting files, or closing connections (Note: This is how `on.exit()` is implemented).
 
 ### `withCallingHandlers()`
+
+Just as with `tryCatch()`, the basic form of a calling hanlder is as follows:
 
 ```{r, eval=FALSE}
 withCallingHandlers(
@@ -2104,6 +2138,42 @@ withCallingHandlers(
 )
 ```
 
+Unlike `tryCatch()`, however, code execution continues after the handler returns a message.
 
+```{r}
+tryCatch(
+  message = function(cnd) cat("Caught a message!\n"), 
+  {
+    message("Someone there?")
+    message("Why, yes!")
+  }
+)
 
+withCallingHandlers(
+  message = function(cnd) cat("Caught a message!\n"), 
+  {
+    message("Someone there?")
+    message("Why, yes!")
+  }
+)
+
+```
+
+### Custom conditions
+
+Built-in conditions only have two elements: `message` and `call`. Custom conditions can contain additional metadata. `rlang::abort()` makes doing this very easy as you can supply a custom `.subclass` and additional metadata. 
+
+For example:
+
+```{r}
+output <- catch_cnd(
+  abort(
+    "error_not_found",
+    message = "Path `blah.csv` not found", 
+    path = "blah.csv"
+    )
+  )
+
+output
+```
 
