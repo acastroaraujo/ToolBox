@@ -16,21 +16,70 @@ knitr::opts_chunk$set(echo = TRUE, comment = "", fig.align = "center",
                       fig.width = 4, fig.height = 3)
 
 library(tidyverse)
-theme_set(theme_minimal(base_family = "Avenir", base_line_size = 0))
+theme_set(theme_minimal(base_family = "IBM Plex Sans", base_line_size = 0))
 ```
 
-```{r results="asis", echo=FALSE}
-cat("<style>
+```{css, echo=FALSE}
 blockquote {
     padding: 10px 20px;
     margin: 0 0 20px;
     font-size: 14px;
-    border-left: 5px solid #eee;
+    color: #828282;
+    border-left: 10px solid #EEE;
 }
-</style>")
+
+body {
+    font-size: 14px;
+}
 ```
 
-## Introduction HTTP
+
+## Introduction to APIs
+
+There are many ways to get data from websites. One of the easiest is to simply to download a static file (e.g. `.txt` or `.csv`) using `utils::file.download()`.
+
+```{r}
+URL <- "https://raw.githubusercontent.com/kosukeimai/qss/master/CAUSALITY/resume.csv"
+
+temp <- tempfile() ## replace this with name of real folder in directory
+download.file(URL, destfile = temp)
+read_csv(temp)
+```
+
+We can also download a file more directly with functions such as `read_csv()`, `read_delim()`, `read_table()`, etc.
+
+```{r}
+read_csv(URL)
+```
+
+But if we are trying to download a lot of data that keeps changing constantly, we will have to use an API.
+
+>API stands for __Application Programming Interface.__ It's a set of routines and protocols for building software components and how they interact.
+>
+>Web APIs serve as interfaces to get or add data to a server, using HTTP methods.
+
+We'll worry about HTTP methods in the next section. For now, it suffices to think of APIs as "websites, but for computers".
+
+```{r}
+
+```
+
+
+
+
+
+
+https://campus.datacamp.com/courses/working-with-web-data-in-r/downloading-files-and-using-api-clients?ex=3
+
+https://blog.revolutionanalytics.com/2019/06/noops-and-r.html
+https://noopschallenge.com/challenges/fizzbot
+
+
+https://zapier.com/learn/apis/
+
+
+
+## Introduction to HTTP
 
 ___Basics of HTTP (or HypterText Transfer Protocol).___
 
@@ -90,13 +139,10 @@ As a general rule...
 
 https://en.wikipedia.org/wiki/List_of_HTTP_status_codes
 
+
 ## The **`httr`** package
 
 If an API client (i.e. an R package) doesn't exist, it's up to you to communicate directly with the API. We can do this through the [**`httr`**](https://httr.r-lib.org/) package. 
-
->API stands for __Application Programming Interface.__ It's a set of routines and protocols for building software components and how they interact. They are "like websites, but for machines".
->
->Web APIs serve as interfaces to get or add data to a server, using HTTP methods.
 
 The `httr::GET()` function will execute this request. The result is a **response object**, that provides easy access to the status code, content-type and (of course) the actual content.
 
