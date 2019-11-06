@@ -9,5 +9,5 @@ extrafont::font_import()  ## type y (this might take a while)
 
 ggplot(tibble(x = runif(100))) + 
   geom_density(aes(x)) + 
-  theme_minimal(base_family = "IBM Plex Sans") +
-  labs("IBM Plex Sans") 
+  theme_minimal(base_family = "Lobster") +
+  labs(title = "The lobster font\n") 
