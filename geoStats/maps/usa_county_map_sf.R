@@ -36,3 +36,22 @@ usa_county_map <- albers_map %>%
 
 
 readr::write_rds(usa_county_map, "usa_county_map.rds", compress = "gz")
+
+
+## Plotting
+
+usa_county_map %>% ## Hybrid!
+  mutate(dens =  pop_total / miles_squared) %>% 
+  mutate(centroid = sf::st_centroid(geometry)) %>% 
+  drop_na() %>% 
+  ggplot() +
+  geom_sf(aes(geometry = geometry), fill = NA, size = 0.05) +
+  geom_sf(aes(size = pop_total, geometry = centroid, color = dens), alpha = 0.5) +
+  scale_color_viridis_c(option = "viridis", direction = -1, trans = "log",
+                        labels = scales::comma, breaks = c(0.1, 1, 10, 100, 1e3, 1e4)) + 
+  theme_void(base_family = "IBM Plex Sans") + labs(color = "Population\nDensity") +
+  theme(legend.position = "bottom", legend.key.width = unit(2, "cm")) +
+  guides(size = "none")
+
+ggsave("geoStats/maps/us-map.png", device = "png", width = 10, height = 10, dpi = "print")
+
