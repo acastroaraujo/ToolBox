@@ -23,6 +23,10 @@ library(tidyverse)
 
 Taken from: Robin Lovelace, Jakub Nowosad, & Jannes Muenchow. [___Geocomputation with R___](https://geocompr.robinlovelace.net/). CRC Press, 2019.
 
+
+
+https://github.com/edzer/nyc_course
+
 ## Introduction
 
 Prior to the __`sp`__ package (2005), geographic coordinates were generally treated like any other number. This package changed R landscape by providing classes and generic methods supporting points, lines, polygons and grids, and attribute data. Along with other packages, like __`rgdal`__ and __`rgeos`__ (for geometric operations), R's spatial ecosystem has been evolving continuously throughout the years. Most recently, the __`sf`__ and __`raster`__ packages have become very popular.

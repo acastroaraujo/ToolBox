@@ -11,9 +11,9 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, comment = "")
-
 ## Packages
-library(reticulate)
+#Sys.setenv(RETICULATE_PYTHON = "/usr/local/bin/python3")
+
 library(tidyverse)
 ```
 
@@ -21,12 +21,13 @@ library(tidyverse)
 
 ```{r}
 ### create a new environment 
-# conda_create("r-NLP")
+# conda_create("nlp")
 ### install modules
-# conda_install("r-NLP", c("scipy", "gensim", "networkx", "nltk", "numpy", "scikit-learn"))
+# conda_install("nlp", c("gensim", "networkx", "numpy"))
 
 # indicate that we want to use a specific condaenv
-use_condaenv(condaenv = "r-NLP")
+library(reticulate)
+use_condaenv(condaenv = "nlp")
 ```
 
 - Access to objects created within Python chunks from R using the `py` object (e.g. `py$x` would access an `x` variable created within Python from R).

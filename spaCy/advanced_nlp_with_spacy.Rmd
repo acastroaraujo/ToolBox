@@ -1,0 +1,282 @@
+---
+title: "<strong>advanced nlp with `spaCy`</strong>"
+author: "andrés castro araújo"
+date: "`r format(Sys.Date(), '%b %d, %Y')`"
+output: 
+  html_document: 
+    theme: paper
+    toc: yes
+    toc_float:
+      collapsed: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", comment = "")
+```
+
+```{css, echo=FALSE}
+blockquote {
+    padding: 10px 20px;
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: #828282;
+    border-left: 10px solid #EEE;
+}
+body {
+    font-size: 14px;
+}
+```
+
+>All of this is taken from Ines Montani's online course, [___advanced NLP with spaCy___](https://course.spacy.io/). Most chunks of code are in `Python`, unless stated otherwise. 
+
+****
+
+```{r}
+## R chunk
+library(reticulate)
+use_condaenv(condaenv = "nlp")
+```
+
+## Introduction
+
+### `English()`
+
+At the center of spaCy is the object containing the processing pipeline. We usually call this variable "`nlp`".
+
+```{python}
+import spacy
+from spacy.lang.en import English
+
+# Create the nlp object
+nlp = English()
+```
+
+You can treat the `nlp` object like a function to analyze text.
+
+```{python}
+doc = nlp("Hello, world!")
+len(doc)
+doc
+```
+
+This will contain all the different components in the spaCy pipeline. It also includes language-specific rules used for tokenizing the text into words and punctuation.
+
+This new `Doc` object lets you access information about the text in a structured way.
+
+```{python}
+# Index into the Doc to get a single Token
+token = doc[2]
+
+# Get the token text via the .text attribute
+token.text
+``` 
+
+```{python}
+# Iterate over tokens in a Doc
+for token in doc:
+    print(token.text)
+```
+
+>A Span object is a slice of the document consisting of one or more tokens. It's only a view of the Doc and doesn't contain any data itself.
+>
+>To create a Span, you can use Python's slice notation. For example, 1 colon 3 will create a slice starting from the token at position 1, up to – but not including! – the token at position 3.
+
+```{python}
+# A slice from the Doc is a Span object
+span = doc[1:4]
+
+# Get the span text via the .text attribute
+print(span.text)
+```
+
+More lexical attributes (i.e. attributes that don't depend on context) include:
+
+- `i`, the index of the token within the parent document.
+
+- `is_alpha`, indicates whether the token consists of alphabetic characters.
+
+- `is_punct`, indicates whether the token is punctuation.
+
+- `like_num`, indicates whether the token resembles a number.
+
+```{python}
+doc = nlp("It costs $5.")
+print('Index:   ', [token.i for token in doc])
+print('Text:    ', [token.text for token in doc])
+
+print('is_alpha:', [token.is_alpha for token in doc])
+print('is_punct:', [token.is_punct for token in doc])
+print('like_num:', [token.like_num for token in doc])
+```
+
+_Example. Fiding percentages in a text by finding `like_num == True` followed by a "%"._
+
+```{python}
+doc = nlp("In 1990, more than 60% of people in East Asia were in extreme poverty. "
+          "Now less than 4% are.")
+          
+for token in doc:
+    if token.like_num:
+        # Get the next token in the document
+        next_token = doc[token.i + 1]
+        # Check if the next token's text equals '%'
+        if next_token.text == "%":
+            print("Percentage found:", token.text)
+```
+
+### Statistical Models
+
+>Statistical models enable spaCy to make _predictions in context_. This usually includes part-of speech tags, syntactic dependencies and named entities.
+>
+>They can be updated with more examples to fine-tune their predictions. For example, to perform better on your specific data.
+
+Run this in terminal, in case you already haven't:
+
+```
+$ python -m spacy download en_core_web_sm
+```
+
+```{python}
+nlp = spacy.load('en_core_web_sm')
+doc = nlp("She ate the pizza")
+```
+
+>The spacy dot load method loads a model package by name and returns an nlp object.
+>
+>The package provides the binary weights that enable spaCy to make predictions.
+>
+>It also includes the vocabulary, and meta information to tell spaCy which language class to use and how to configure the processing pipeline.
+
+- Get __parts-of-speech__ with "pos underscore"
+
+```{python}
+for token in doc:
+    # Print the text and the predicted part-of-speech tag
+    print(token.text, token.pos_)
+```
+
+- Get __syntactic dependencies__ with "dep underscore" (e.g. whether a word is the subject or object of a sentence).
+
+    >The head attribute returns the syntactic head token. You can also think of it as the parent token this word is attached to.
+    
+```{python}
+for token in doc:
+    print(token.text, token.pos_, token.dep_, token.head.text)
+```
+
+```{r, echo=FALSE, out.width="80%"}
+htmltools::HTML(py$spacy$displacy$render(py$doc, style = "dep"))
+
+kableExtra::kable_styling(
+knitr::kable(
+tibble::tibble(
+  label = c("nsubj", "dobj", "det"),
+  description = c("nominal subject", "direct object", "determiner (the article)"),
+  example = c("she", "pizza", "the")
+  ), format = "html"), stripe_color = "grey"
+)
+```
+
+__Predicting named entities__
+
+```{r, echo=FALSE, out.width="80%"}
+doc = py$nlp("Apple is looking at buying U.K. startup for $1 billion")
+htmltools::HTML(py$spacy$displacy$render(py$doc, style = "ent"))
+```
+
+```{python}
+doc = nlp("Apple is looking at buying U.K. startup for $1 billion")
+
+# Iterate over the predicted entities
+for ent in doc.ents:
+    # Print the entity text and its label
+    print(ent.text, ent.label_)
+```
+
+_Tip. If some of these don't make sense, use the `explain` method._
+
+```{python}
+spacy.explain("GPE")
+spacy.explain("nsubj")
+```
+
+### Rule-based matching
+
+SpaCy's matcher lets you write rules to find words and phrases in text. This goes beyond simple regular expressions because it looks at tokens and token attributes (e.g. whether the same word is being used as a verb or a noun).
+
+_Match patterns_
+
+Match patterns are __lists of dictionaries__ (one dictionary per token). The keys are the names of token attributes, mapped to their expected values.
+
+For example, here's how we would look for two tokens:
+
+```
+[{'TEXT': 'iPhone'}, {'TEXT': 'X'}]   ## Match exact token texts
+
+[{'LOWER': 'iphone'}, {'LOWER': 'x'}] ## Match lexical attributes
+
+[{'LEMMA': 'buy'}, {'POS': 'NOUN'}]   ## Match any token attributes
+```
+
+This last pattern would match phrases like "buying milk" or "bought flowers".
+
+This is how we would use the matcher:
+
+```{python}
+import spacy
+
+# Import the Matcher
+from spacy.matcher import Matcher
+
+nlp = spacy.load("en_core_web_sm")
+doc = nlp("New iPhone X release date leaked as Apple reveals pre-orders by mistake")
+
+# Initialize the Matcher with the shared vocabulary
+matcher = Matcher(nlp.vocab)
+
+# Create a pattern matching two tokens: "iPhone" and "X"
+pattern = [{"TEXT": {"REGEX": "i[Pp]hone"}}, {"LOWER": "x"}]
+
+# Add the pattern to the matcher
+matcher.add("IPHONE_X_PATTERN", None, pattern)
+
+# Use the matcher on the doc
+matches = matcher(doc)
+```
+
+>When you call the matcher on a doc, it returns a list of tuples.
+>
+>Each tuple consists of three values: the match ID (i.e. hash value), the start index, and the end index of the matched span.
+
+```{python}
+matches
+```
+
+```{python}
+# Iterate over the matches
+print("Matches:", [doc[start:end].text for match_id, start, end in matches])
+```
+
+Here's another example, using the "OP" key: 
+
+>Operators and quantifiers let you define how often a token should be matched. They can be added using the "OP" key.
+
+```{python}
+doc = nlp("I bought a smartphone. Now I'm buying apps.")
+
+pattern = [
+    {'LEMMA': 'buy'},
+    {'POS': 'DET', 'OP': '?'},  # optional: match 0 or 1 times
+    {'POS': 'NOUN'}
+]
+
+matcher.add("BUY_EXAMPLE", None, pattern)
+matches = matcher(doc)
+print("Matches:", [doc[start:end].text for match_id, start, end in matches])
+```
+
+## Large scale data analysis
+
+
+https://course.spacy.io/chapter2
+

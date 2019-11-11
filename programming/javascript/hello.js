@@ -12,7 +12,8 @@ sayHello("Andrés");
 const a_number = 123.45;
 console.log('the type of', a_number, 'is', typeof a_number);
 
-console.log('the type of', console.log, 'is', typeof console.log); // functions are also a type of data!
+// functions are also a type of data!
+console.log('the type of', console.log, 'is', typeof console.log); 
 
 const otherValues = [true, undefined, null];
 for (let value of otherValues) {  // "let" creates a variable called value
