@@ -1,0 +1,134 @@
+---
+title: "<strong>Functional Programming</strong>"
+author: "andrés castro araújo"
+date: "`r format(Sys.Date(), '%b %d, %Y')`"
+output: 
+  html_document: 
+    theme: paper
+    toc: yes
+    toc_float:
+      collapsed: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "", fig.align = "center")
+```
+
+```{css, echo=FALSE}
+blockquote {
+    padding: 10px 20px;
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: #828282;
+    border-left: 10px solid #EEE;
+}
+
+body {
+    font-size: 14px;
+}
+```
+
+>All of this is taken from Hadley Wickham's [__Advanced R__](https://adv-r.hadley.nz). CRC Press, 2019.
+
+****
+
+## Introduction
+
+R lends itself to a _functional style_ of programming. 
+
+
+Functions can be regularly analyzed in isolation, which means that optimization and parallelization can become easier. The downside, also familiar to R users, is that memory usage can sometimes become unpredictable. 
+ 
+>Functional languages have __first-class functions__, functions that behave _like any other data structure._ In R, this means that you can do many of the things with a function that you can do with a vector: you can assign them to variables, store them in lists, pass them as arguments to other functions, create them inside functions, and even return them as the result of a function.
+
+Many functional languages require that functions are __pure__ (i.e. that every input results in the same outputs). This is obviously not the case in R (e.g. `runif()`, `read.csv()`). So even though R isn't strictly speaking a functional language, it certainly resembles one.
+
+>It’s hard to describe exactly what a functional _style_ is, but generally I think it means decomposing a big problem into smaller pieces, then solving each piece with a function or combination of functions. When using a functional style, you strive to decompose components of the problem into isolated functions that operate independently. Each function taken by itself is simple and straightforward to understand; complexity is handled by composing functions in various ways.
+
+This notebook in particular is about __higher-order functions__. These functions can be categorized depending on their inputs and outputs, in accordance with this handy two-by-two table:
+
+```{r, echo=FALSE, out.width="300px"}
+knitr::include_graphics(
+"https://d33wubrfki0l68.cloudfront.net/1dff819e743f280bbab1c55f8f063e60b6a0d2fb/2269e/diagrams/fp.png")
+```
+
+## Functionals
+
+>A __functional__ is a function that takes a function as an input and returns a vector as output. Here’s a simple functional: it calls the function provided as input with 100 random uniform numbers.
+
+```{r}
+randomize <- function(f) f(runif(100))
+randomize(mean)
+randomize(sum)
+```
+
+>The chances are that you've already used a functional. You might have used for-loop replacements like base R's `lapply()`, `apply()`, and `tapply()`; or purrr's `map()`; or maybe you've used a mathematical functional like `integrate()` or `optim()`.
+
+```{r}
+integrate(dnorm, lower = 0, upper = Inf)
+```
+
+### Map
+
+```{r}
+library(purrr)
+```
+
+The most important functional is ___`purrr::map()`___ (equivalent to `base::lapply()`): it takes a vector and a function, calls the function once for each element of the vector, and returns the results in a list.
+
+```{r}
+map(1:3, function(x) x^2)  ## using anonymous or lambda function
+```
+
+The name "map" comes from mathematics, where "an operation that associates each element of a given set with one or more elements of a second set".
+
+```{r, echo=FALSE, out.width="300px"}
+knitr::include_graphics(
+"https://d33wubrfki0l68.cloudfront.net/f0494d020aa517ae7b1011cea4c4a9f21702df8b/2577b/diagrams/functionals/map.png"
+)
+```
+
+The inner workings of `map()` are pretty much what we can expect from a for loop:
+
+```{r, eval=FALSE}
+output <- vector("list", length(x))
+for (i in seq_along(x)) {
+  output[[i]] <- f(x[[i]])
+}
+```
+
+There are many variants to `map()` that can be identified via conventional suffixes like `_dbl` to specify the type of _atomic vector_ we want to receive as output.
+
+```{r}
+map_chr(mtcars, is.numeric)  ## remember that data frames are lists of lists.
+map_dbl(mtcars, max) %>% 
+  map_dbl(round, digits = 1) ## using dot-dot-dot 
+```
+
+The `map()` family is different from `lapply()` (and other `base` variants) because it supports some shortcuts.
+
+For example:
+
+```{r}
+identical(
+  map_dbl(mtcars, ~ length(unique(..1))),          ## twiddle syntax
+  map_dbl(mtcars, function(x) length(unique(x)))   ## alternative
+  )
+
+map(1:3, ~ rnorm(10)) %>% str()                         ## twiddle syntax
+map(1:3, function(x) rnorm(10)) %>% str()               ## alternative
+replicate(n = 3, rnorm(10), simplify = FALSE) %>% str() ## other alternative
+```
+
+
+
+
+
+### Reduce
+
+
+### Predicates
+
+
+
+### Extra
