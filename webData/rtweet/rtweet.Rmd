@@ -1,5 +1,5 @@
 ---
-title: "rtweet"
+title: "<strong>rtweet notebook</strong>"
 author: "Andrés Castro Araújo"
 output: 
   html_document:
