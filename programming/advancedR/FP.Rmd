@@ -35,9 +35,6 @@ body {
 ## Introduction
 
 R lends itself to a _functional style_ of programming. 
-
-
-Functions can be regularly analyzed in isolation, which means that optimization and parallelization can become easier. The downside, also familiar to R users, is that memory usage can sometimes become unpredictable. 
  
 >Functional languages have __first-class functions__, functions that behave _like any other data structure._ In R, this means that you can do many of the things with a function that you can do with a vector: you can assign them to variables, store them in lists, pass them as arguments to other functions, create them inside functions, and even return them as the result of a function.
 
@@ -107,7 +104,7 @@ map_dbl(mtcars, max) %>%
 
 The `map()` family is different from `lapply()` (and other `base` variants) because it supports some shortcuts.
 
-For example:
+For example, the "twiddle" syntax (~):
 
 ```{r}
 identical(
@@ -120,9 +117,47 @@ map(1:3, function(x) rnorm(10)) %>% str()               ## alternative
 replicate(n = 3, rnorm(10), simplify = FALSE) %>% str() ## other alternative
 ```
 
+_Varying a different argument_
 
+>So far the first argument to `map()` has always become the first argument to the function. But what happens if the first argument should be constant, and you want to vary a different argument? How do you get the result in this picture?
 
+```{r, echo=FALSE, out.width="300px"}
+knitr::include_graphics(
+"https://d33wubrfki0l68.cloudfront.net/6d0b927ba5266f886cc721ae090afcc5e872a748/f8636/diagrams/functionals/map-arg-flipped.png"
+)
+```
 
+```{r}
+draws <- rcauchy(1000)
+trims <- c(0, 0.1, 0.2, 0.5)
+
+map_dbl(trims, ~ mean(draws, trim = ..1))
+map_dbl(trims, function(input) mean(x = draws, trim = input))
+map_dbl(trims, mean, x = draws) ## making use of flexible arg. matching
+```
+
+__Piping multiple `purrr` functions__
+
+```{r}
+base::split(mtcars, mtcars$cyl) %>% ## split data frame into three, by cyl
+  map(function(df) lm(mpg ~ wt, data = df)) %>% ## fit linear model three times
+  map(coefficients) %>% ## access coefficients
+  map_dbl(pluck, "wt")  ## extract slope
+
+## Loop alternative
+slopes <- vector("double", 3)
+for (i in seq_along(slopes)) {
+  model <- lm(mpg ~ wt, data = base::split(mtcars, mtcars$cyl)[[i]])
+  slopes[[i]] <- coef(model)[["wt"]]
+}
+slopes
+```
+
+___Exercises.___
+
+9.2.6
+
+### Varieties of Map
 
 ### Reduce
 
