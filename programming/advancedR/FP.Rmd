@@ -133,7 +133,7 @@ trims <- c(0, 0.1, 0.2, 0.5)
 
 map_dbl(trims, ~ mean(draws, trim = ..1))
 map_dbl(trims, function(input) mean(x = draws, trim = input))
-map_dbl(trims, mean, x = draws) ## making use of flexible arg. matching
+map_dbl(trims, mean, x = draws) ## using R's flexible argument matching
 ```
 
 __Piping multiple `purrr` functions__
@@ -155,7 +155,77 @@ slopes
 
 ___Exercises.___
 
-9.2.6
+>`map(1:3, ~ runif(2))` is a useful pattern for generating random numbers, but `map(1:3, runif(2))` is not. Why not? Can you explain why it returns the result that it does?
+
+`map()` uses `as_mapper()` to turn it's second argument into a function that then gets applied to each element in the first argument. 
+
+In the first case, the twiddle syntax succesfully turns `~ runif(2)` into an anonymous function that then gets applied one time for every iteration.
+
+In the second case, `as_mapper()` fails to turn `runif(2)` into a function. If the second argument is a _character vector_, _numeric vector_, or _list_, then `as_mapper()` turns this into an extractor function that uses `purr::pluck()` to extract elements.
+
+```{r}
+as_mapper(~runif(2))
+as_mapper(runif(2))
+```
+
+This is how it works:
+
+```{r}
+identical(map(1:3, 1), map(1:3, pluck, 1))
+```
+
+>Use the appropriate `map()` function to:
+
+```{r}
+# 1. Compute the standard deviation of every column in a numeric data frame.
+map_dbl(mtcars, sd)
+
+# 2. Compute the standard deviation of every numeric column in a mixed data frame.
+index <- map_lgl(iris, is.numeric)
+map_dbl(iris[index], sd)
+
+# Compute the number of levels for every factor in a data frame.
+map(iris[!index], attr, which = "levels")
+```
+
+>The following code simulates the performance of a t-test for non-normal data. Extract the p-value from each test, then visualise.
+
+```{r, fig.height=3, fig.width=6}
+trials <- map(1:1000, ~ t.test(rpois(10, 10), rpois(7, 10)))
+
+tibble(p = map_dbl(trials, "p.value")) %>% 
+  ggplot(aes(p)) + geom_histogram(binwidth = 0.05, color = "black")
+```
+
+>Use map() to fit linear models to the mtcars dataset using the formulas stored in this list:
+
+```{r}
+formulas <- list(
+  mpg ~ disp,
+  mpg ~ I(1 / disp),
+  mpg ~ disp + wt,
+  mpg ~ I(1 / disp) + wt
+)
+
+formulas %>% 
+  map(~ lm(..1, data = mtcars)) %>% 
+  map(coefficients)
+```
+
+>Fit the model `mpg ~ disp` to each of the bootstrap replicates of mtcars in the list below, then extract the $R^2$ of the model fit.
+
+```{r}
+bootstrap <- function(df) {
+  df[sample(nrow(df), replace = TRUE), , drop = FALSE]
+}
+
+bootstraps <- map(1:10, ~ bootstrap(mtcars))
+
+bootstraps %>% 
+  map(function(df) lm(mpg ~ disp, data = df)) %>% 
+  map(summary) %>% 
+  map_dbl("r.squared") ## extractor 
+```
 
 ### Varieties of Map
 
