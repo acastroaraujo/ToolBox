@@ -94,17 +94,17 @@ manyTokens_get_followers <- function(u, token) {
       if (sum(rl$remaining) == 0) {   # wait min time possible if all tokens are exhausted
         message("Wait for ", round(median(rl$reset), digits = 2), " mins...")
         Sys.sleep(as.numeric(median(abs(rl$reset)), "secs") + 2)  ## abs is to mitigate a quirky error
-        
+        rl <- rate_limit(token, "get_followers")
+        rl$remaining <- rl$remaining * 5e3
       }
       
-      rl <- rate_limit(token, "get_followers")
       
       while (sum(rl$remaining) == 0) {            ## Sometimes the tokens don't reset when they're supposed to.
         Sys.sleep(30)                             ## If all works well, this little snippet should never execute.
         rl <- rate_limit(token, "get_followers") 
+        rl$remaining <- rl$remaining * 5e3
       }
       
-      rl$remaining <- rl$remaining * 5e3
       token_index <- which(rl$remaining == max(rl$remaining))[[1]]
       
       output[[i]] <- get_followers(
@@ -124,7 +124,9 @@ manyTokens_get_followers <- function(u, token) {
       pull(user_id)
   }
   
-  output <- list(user_id = followers)   ## go back here!!
+  message("Followers: information about ", user_info$name, " (to), from other nodes")
+  message("Use tibble::enframe(name = 'to', value = 'from') to get edge list")
+  output <- list(user_id = followers) 
   names(output) <- user_info$user_id
   output
 }
@@ -132,125 +134,220 @@ manyTokens_get_followers <- function(u, token) {
 
 ## -----------------------------------------
 
-# manyTokens_get_friends <- function(u) {
-#   
-#   user_info <- lookup_users(u)
-#   fc <- user_info$friends_count
-#   rl <- rate_limit(token, "get_friends") %>% 
-#     pull(remaining) * 5e3
-#   
-#   message(paste0("\n", user_info$screen_name, " is following ", scales::comma(fc), " users ", "(approx. ",  ceiling(fc / 75000), " queries are required)"))
-#   
-#   if (fc == 0) return(list(NULL))
-#   
-#   # ******************************************************
-#   # Case 1: one token is enough
-#   # ******************************************************
-#   
-#   if (any(rl >= fc)) {
-#     i <- which(rl >= fc)[[1]]
-#     friends <- get_friends(u, n = fc, token = token[[i]]) %>% 
-#       pull(user_id)
-#     
-#     # ******************************************************
-#     # Case 2: a combination of the existing tokens is enough
-#     # ******************************************************
-#     
-#   } else if (sum(rl) >= fc) {
-#     token_index <- which(rl > 0) 
-#     output <- vector("list", length(token_index))
-#     
-#     output[[1]] <- get_friends(
-#       user = u, n = rl[token_index[1]], 
-#       token = token[token_index[1]]
-#     )
-#     
-#     for (i in seq_along(token_index)[-1]) {
-#       output[[i]] <- get_friends(
-#         user = u, n = rl[token_index[i]], 
-#         token = token[token_index[i]],
-#         page = next_cursor(output[[i - 1]])
-#       )
-#     }
-#     
-#     friends <- bind_rows(output) %>% 
-#       drop_na() %>% 
-#       distinct() %>% 
-#       pull(user_id)
-#     
-#     # ******************************************************
-#     # Case 3: none of the tokens are enough (make loop)
-#     # ******************************************************
-#     
-#   } else {
-#     
-#     ## wait some time if all tokens are exhausted...
-#     
-#     if (sum(rl) == 0) { 
-#       cat("Token reset in", median(rate_limit(token, "get_friends") %>% pull(reset)), "mins...\n")
-#       Sys.sleep(median(rate_limit(token, "get_friends") %>% pull(reset)) * 60 + 10)
-#       rl <- rate_limit(token, "get_friends") %>% pull(remaining) * 5e3
-#     }
-#     
-#     output <- list()
-#     i <- 1
-#     output[[i]] <- get_friends(
-#       user = u, n = max(rl), 
-#       token = token[[which(rl == max(rl))[1]]]
-#     )
-#     
-#     repeat {
-#       
-#       i <- i + 1
-#       df_rate_limit <- rate_limit(token, "get_friends")
-#       rl <- df_rate_limit %>% pull(remaining)
-#       
-#       if (sum(rl) == 0) {   # wait min time possible if all tokens are exhausted
-#         message("Wait for", median(df_rate_limit %>% pull(reset)), "mins...")
-#         t0 <- df_rate_limit %>% pull(timestamp)
-#         t1 <- df_rate_limit %>% pull(reset_at)
-#         Sys.sleep(median(difftime(t1, t0, units = "secs")) + 5)
-#       }
-#       
-#       rl <- rate_limit(token, "get_friends") %>% pull(remaining)
-#       
-#       ## Sometimes the tokens don't reset when they're supposed to.
-#       ## If all works well, this little snippet should never execute.
-#       while (sum(rl) == 0) { 
-#         Sys.sleep(30)
-#         rl <- rate_limit(token, "get_friends") %>% pull(remaining)
-#       }
-#       
-#       token_index <- which(rl == max(rl))[[1]]
-#       
-#       output[[i]] <- get_friends(
-#         user = u, n = (max(rl) * 5e3),
-#         token = token[[token_index]],
-#         page = next_cursor(output[[i - 1]])
-#       )
-#       
-#       if (nrow(output[[i]]) < max(rl) * 5e3) {
-#         break
-#       }
-#     }
-#     
-#     friends <- bind_rows(output) %>% 
-#       drop_na() %>% 
-#       distinct() %>% 
-#       pull(user_id)
-#   }
-#   return(tibble(from = user_info$user_id, to = friends))
-# }
+manyTokens_get_friends <- function(u, token) {
+  
+  user_info <- lookup_users(u, token = token)
+  fc <- user_info$friends_count
+  rl <- rate_limit(token, "get_friends")
+  rl$remaining <- rl$remaining * 5e3
+  
+  message(paste0("\n", user_info$screen_name, " is following ", scales::comma(fc), " users ", "(approx. ",  ceiling(fc / 75000), " queries are required)"))
+  message(user_info$screen_name, " is following ", scales::comma(fc), " users ")
+  message("number of queries: ",  ceiling(fc / 75000))
+  
+  if (fc == 0) return(list(NULL))
+  
+  # ******************************************************
+  # Case 1: one token is enough
+  # ******************************************************
+
+  if (any(rl$remaining >= fc)) {
+    i <- which(rl$remaining >= fc)[[1]]
+    friends <- get_friends(u, n = fc, token = token[[i]]) %>%
+      pull(user_id)
+    
+    # ******************************************************
+    # Case 2: a combination of the existing tokens is enough
+    # ******************************************************
+    
+    } else if (sum(rl$remaining) >= fc) {
+      token_index <- which(rl > 0)
+      output <- vector("list", length(token_index))
+      
+      output[[1]] <- get_friends(
+        user = u, n = rl[token_index[1]],
+        token = token[token_index[1]]
+        )
+      
+      for (i in seq_along(token_index)[-1]) {
+        output[[i]] <- get_friends(
+          user = u, n = rl[token_index[i]],
+          token = token[token_index[i]],
+          page = next_cursor(output[[i - 1]])
+        )
+      }
+      
+      friends <- bind_rows(output) %>%
+        drop_na() %>%
+        distinct() %>%
+        pull(user_id)
+      
+      # ******************************************************
+      # Case 3: none of the tokens are enough (make loop)
+      # ******************************************************
+      
+      } else {
+
+        ## wait some time if all tokens are exhausted...
+
+        if (sum(rl$remaining) == 0) {
+          message("Token reset in ", round(median(rl$reset), digits = 2), " mins...")
+          Sys.sleep(as.numeric(median(abs(rl$reset)), "secs") + 2)  ## abs is to mitigate a quirky error
+          rl <- rate_limit(token, "get_followers")                  ## in which reset has negative values
+          rl$remaining <- rl$remaining * 5e3
+        }
+        
+        output <- list()
+        i <- 1
+        output[[i]] <- get_friends(
+          user = u, n = max(rl$remaining),
+          token = token[[which(rl == max(rl))[1]]]
+          )
+        
+        repeat {
+          
+          i <- i + 1
+          rl <- rate_limit(token, "get_friends")
+          rl$remaining <- rl$remaining * 5e3
+
+          if (sum(rl$remaining) == 0) {   # wait min time possible if all tokens are exhausted
+            message("Wait for ", round(median(rl$reset), digits = 2), " mins...")
+            Sys.sleep(as.numeric(median(abs(rl$reset)), "secs") + 2)  ## abs is to mitigate a quirky error
+            rl <- rate_limit(token, "get_friends")
+            rl$remaining <- rl$remaining * 5e3
+          }
+          
+          while (sum(rl$remaining) == 0) {            ## Sometimes the tokens don't reset when they're supposed to.
+            Sys.sleep(30)                             ## If all works well, this little snippet should never execute.
+            rl <- rate_limit(token, "get_friends") 
+            rl$remaining <- rl$remaining * 5e3
+          }
+          
+          token_index <- which(rl$remaining == max(rl$remaining))[[1]]
+
+          output[[i]] <- get_friends(
+            user = u, n = max(rl$remaining),
+            token = token[[token_index]],
+            page = next_cursor(output[[i - 1]])
+          )
+          
+          if (nrow(output[[i]]) < max(rl$remaining)) {
+            break
+          }
+          
+        }
+        
+        friends <- bind_rows(output) %>%
+          drop_na() %>%
+          distinct() %>%
+          pull(user_id)
+      }
+  
+  message("Friends: information about ", user_info$name, " (from), to other nodes")
+  message("Use tibble::enframe(name = 'from', value = 'to') to get edge list")
+  output <- list(user_id = friends) 
+  names(output) <- user_info$user_id
+  output
+
+}
+
+manyTokens_lookup_users <- function(u_list, token) {
+  
+  # rtweet::lookup_users() returns data on up to 90,000 Twitter users, then we
+  # have to wait 15 minutes
+  
+  rl <- rate_limit(token, "lookup_users")
+  rl$remaining <- rl$remaining * 100
+  
+  u_length <- length(u_list)
+  
+  # ******************************************************
+  # Case 1: one token is enough
+  # ******************************************************
+  
+  if (any(rl$remaining >= u_length)) {
+    i <- which(rl$remaining >= u_length)[[1]]
+    user_info <- lookup_users(u_list, token = token[[i]])
+  
+  # ******************************************************
+  # Case 2: a combination of the existing tokens is enough
+  # ******************************************************
+    
+  } else if (sum(rl$remaining) >= u_length) {
+    
+    usable_tokens <- which(rl$remaining > 0) 
+    output_length <- which(cumsum(rl$remaining[usable_tokens]) >= u_length)[[1]]
+    
+    output <- vector("list", output_length)
+    
+    u_left <- u_list
+    
+    for (i in seq_along(output)) {
+      
+      if (i > 1) {
+        u_left <- setdiff(u_left, output[[i - 1]]$user_id)
+      }
+      output[[i]] <- lookup_users(u_left, token = token[usable_tokens[[i]]])
+    }
+
+    user_info <- bind_rows(output)
+    
+    # ******************************************************
+    # Case 3: none of the tokens are enough (make loop)
+    # ******************************************************
+    
+  } else {
+    
+    if (sum(rl$remaining) == 0) { 
+      message("Token reset in ", round(median(rl$reset), digits = 2), " mins...")
+      Sys.sleep(as.numeric(median(abs(rl$reset)), "secs") + 2)  ## abs is to mitigate a quirky error
+      rl <- rate_limit(token, "lookup_users")                  ## in which reset has negative values
+      rl$remaining <- rl$remaining * 100
+    }
+    
+    output <- list()
+    u_left <- u_list
+    i <- 1
+    output[[i]] <- lookup_users(u_left, token = token[[which(rl$remaining == max(rl$remaining ))[1]]])
+    
+    repeat {
+      
+      i <- i + 1
+      rl <- rate_limit(token, "lookup_users")
+      rl$remaining <- rl$remaining * 100
+      u_left <- setdiff(u_left, output[[i - 1]]$user_id)
+      
+      if (sum(rl$remaining) == 0) {   # wait min time possible if all tokens are exhausted
+        message("Wait for ", round(median(rl$reset), digits = 2), " mins...")
+        Sys.sleep(as.numeric(median(abs(rl$reset)), "secs") + 2)  ## abs is to mitigate a quirky error
+        rl <- rate_limit(token, "lookup_users")
+        rl$remaining <- rl$remaining * 100
+      }
+      
+      while (sum(rl$remaining) == 0) {            ## Sometimes the tokens don't reset when they're supposed to.
+        Sys.sleep(30)                             ## If all works well, this little snippet should never execute.
+        rl <- rate_limit(token, "lookup_users") 
+        rl$remaining <- rl$remaining * 5e3
+      }
+      
+      token_index <- which(rl$remaining == max(rl$remaining))[[1]]
+      
+      u_left <- setdiff(u_left, output[[i - 1]]$user_id)
+      output[[i]] <- lookup_users(u_left, token = token[[which(rl$remaining == max(rl$remaining))[1]]])
+      
+      if (nrow(output[[i]]) < max(rl$remaining)) {
+        break
+      }
+    }
+    
+    user_info <- bind_rows(output) 
+  }
+  
+  return(user_info)
+}
 
 
-# manyTokens_lookup_users <- function(user_list, token) {
-#   
-#   rl <- rate_limit(token, "lookup_users")
-#   
-#   ruprimny <- lookup_users(, token = token[[3]])
-#   
-#   
-# }
+## Note, to avoid 
 
 ## **********************************
 ## Quick influence ------- 
@@ -261,17 +358,39 @@ influence_data <- function(user, token) {
     user_info <- lookup_users(user, token = token[[sample(length(token), size = 1)]])
     
     user_followers <- manyTokens_get_followers(user_info$user_id, token = token)
-    followers_details <- lookup_users(unlist(user_followers), token = token[[sample(length(token), size = 1)]])
+    followers_details <- manyTokens_lookup_users(unlist(user_followers), token = token)
     
-    message(user_info$name, " has a primary influence of ",
-            scales::comma(sum(c(followers_details$followers_count, user_info$followers_count))))
+    primary_influence <- sum(c(followers_details$followers_count, user_info$followers_count))
+    message(user_info$name, " has a primary influence of ", scales::comma(primary_influence))
   
-  return(list(user_info = user_info, follower_details = followers_details))
+  return(list(user_info = user_info, follower_details = followers_details, primary_influence = primary_influence))
   
 }
 
-#me_df <- influence_snapshot("acastroaraujo", token = token)
+## Proof of concept
+andres <- influence_data("acastroaraujo", token)
+sergio <- influence_data("SergioChaparro8", token)
+paola <- influence_data("PMolanoA", token)
 
-ruprimny <- influence_data("RodrigoUprimny", token = token)
+df <- tibble(
+  sergio = list(sergio$follower_details$followers_count),
+  andres = list(andres$follower_details$followers_count),
+  paola = list(paola$follower_details$followers_count)
+)
+
+
+df %>% 
+  pivot_longer(cols = everything()) %>% 
+  unnest(cols = value) %>% 
+  filter(value > 0) %>% 
+  ggplot(aes(value, fill = fct_rev(name), color = fct_rev(name), y = ..count..)) +
+  geom_density(alpha = 0.2) +
+  scale_x_log10(labels = scales::comma) +
+  theme_minimal(base_family = "IBM Plex Sans") + 
+  scale_fill_viridis_d() + 
+  scale_color_viridis_d() +
+  theme(legend.position = "top") +
+  labs(color = NULL, fill = NULL, x = "\nseguidores de seguidores", y = "seguidores\n",
+       title = "Influencia, por número de seguidores de seguidores")
 
 
