@@ -1,0 +1,57 @@
+---
+title: "notebook"
+author: "andrés castro araújo"
+date: "11/14/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+```
+
+### Reduce family
+
+>After the map family, the next most important family of functions is the reduce family. This family is much smaller, with only two main variants, and is used less commonly, but it's a powerful idea, gives us the opportunity to discuss some useful algebra, and powers the map-reduce framework frequently used for processing very large datasets.
+
+>[`reduce()`](https://purrr.tidyverse.org/reference/reduce.html) takes a vector of length `n` and produces a vector of length `1` by calling a function with a pair of values at a time: `reduce(1:4, f)` is equivalent to `f(f(f(1, 2), 3), 4)`.
+
+```{r, echo=FALSE, out.width="300px"}
+knitr::include_graphics(
+"https://d33wubrfki0l68.cloudfront.net/9c239e1227c69b7a2c9c2df234c21f3e1c74dd57/eec0e/diagrams/functionals/reduce.png"
+)
+```
+
+For example, suppose we have 4 lists that contain fruit, and we want to figure out how what are the fruits common to _all_ of them. To do this, we have to call intersect five times (each time using the results of the previous call).
+
+```{r}
+fruit_lists <- map(1:4, ~sample(fruit, 35))
+
+## This...
+fruit_lists[[1]] %>% 
+  intersect(fruit_lists[[2]]) %>% 
+  intersect(fruit_lists[[3]]) %>% 
+  intersect(fruit_lists[[4]]) 
+
+## ...is equivalent to this
+reduce(fruit_lists, intersect)
+
+
+```
+
+`accumulate()` is a variant of `reduce()` that returns all the intermediate results as well.
+
+```{r}
+accumulate(fruit_lists, intersect)
+```
+
+__Note.__ These two functions behave a lot like `sum()` and `cumsum()`.
+
+```{r}
+x <- c(4, 3, 10, 12)
+reduce(x, `+`) ## sum()
+accumulate(x, `+`) ## cumsum()
+```
+
+The `.init` argument.
