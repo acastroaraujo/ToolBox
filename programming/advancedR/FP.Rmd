@@ -68,7 +68,7 @@ integrate(dnorm, lower = 0, upper = Inf)
 ### Map
 
 ```{r}
-library(purrr)
+library(tidyverse)
 ```
 
 The most important functional is ___`purrr::map()`___ (equivalent to `base::lapply()`): it takes a vector and a function, calls the function once for each element of the vector, and returns the results in a list.
@@ -79,7 +79,7 @@ map(1:3, function(x) x^2)  ## using anonymous or lambda function
 
 The name "map" comes from mathematics, where "an operation that associates each element of a given set with one or more elements of a second set".
 
-```{r, echo=FALSE, out.width="300px"}
+```{r, echo=FALSE, out.width="280px"}
 knitr::include_graphics(
 "https://d33wubrfki0l68.cloudfront.net/f0494d020aa517ae7b1011cea4c4a9f21702df8b/2577b/diagrams/functionals/map.png"
 )
@@ -229,7 +229,228 @@ bootstraps %>%
 
 ### Varieties of Map
 
-### Reduce
+- Output same type as input with `modify()`
+
+- Iterate over two inputs with `map2()`
+
+- Iterate with an index using `imap()`
+
+- Return nothing with `walk()`
+
+- Iterate over any number of inputs with `pmap()`
+
+
+INSERT TABLE
+
+__Same type of output as input: `modify()`__
+
+```{r}
+df <- data.frame(
+  x = 1:3,
+  y = 6:4
+)
+
+map(df, scale) %>% str()  ## returns a list
+modify(df, scale)         ## returns a data.frame
+```
+
+__Two inputs: `map2()` and friends__
+
+```{r, error=TRUE}
+## Example: finding a weighted mean
+x <- map(1:5, ~ rnorm(20))
+wt <- map(1:5, ~ runif(20))
+
+weighted.mean(x[[1]], wt[[1]]) ## first element of each list
+
+## Passing wt as an additional argument doesn’t work because arguments
+## after .f are not transformed:
+map(x, weighted.mean, w = wt) 
+```
+
+For this we use the `map2()` variety, which is vectorised over two arguments. This means both `..1` and `..2` are varied in each call to `weighted.mean`
+
+```{r}
+x[[3]][[3]] <- NA
+map2_dbl(x, wt, weighted.mean)
+map2_dbl(x, wt, weighted.mean, na.rm = TRUE)
+```
+
+```{r, echo=FALSE, out.width="350px"}
+knitr::include_graphics(
+"https://d33wubrfki0l68.cloudfront.net/7a545699ff7069a98329fcfbe6e42b734507eb16/211a5/diagrams/functionals/map2-arg.png"
+)
+```
+
+__No outputs: `walk()` and friends__
+
+>Some functions are called primarily for their side-effects (e.g. `cat()`, `write.csv()`, or `ggsave()`) and it doesn’t make sense to capture their results.
+
+```{r}
+eat_fruit <- function(x) {
+  cat("Eat some more ", x, "!\n", sep = "")
+}
+
+sample(fruit, size = 5) %>% 
+  map(eat_fruit)
+```
+
+To prevent `NULL` from showing up, we use `walk()`, which returns the input values through `invisible()`.
+
+```{r}
+sample(fruit, size = 5) %>% 
+  walk(eat_fruit)
+
+walk(1:5, ~ rnorm(10))
+```
+
+A very common use case for this pattern is saving some object to disk.
+
+```{r}
+temp <- tempfile()
+dir.create(temp)
+
+species <- split(iris, iris$Species)  ## list of three
+paths <- file.path(temp, paste0("species-", names(species), ".rds"))
+walk2(species, paths, write_rds)
+
+list.files(temp)
+read_rds(paste0(temp, "/species-setosa.rds")) %>% head()
+```
+
+__Iterating over values and indices__
+
+>There are three basic ways to loop over a vector with a for loop:
+
+- Loop over the elements: `for (x in xs)`
+
+- Loop over the numeric indices: `for (i in seq_along(xs))`
+
+- Loop over the names: `for (nm in names(xs))`
+
+>The first form is analogous to the map() family. The second and third forms are equivalent to the imap() family which allows you to iterate over the values and the indices of a vector in parallel.
+
+>`imap()` is like `map2()` in the sense that your `.f` gets called with two arguments, but here both are derived from the vector. `imap(x, f)` is equivalent to `map2(x, names(x), f)` if `x` has names, and `map2(x, seq_along(x), f)` if it does not.
+
+```{r}
+## example: constructing labels
+imap_chr(iris, ~ paste0("The first value in ", ..2, " is ", ..1[[1]]))
+```
+
+__Any number of inputs: `pmap()` and friends__
+
+`pmap()` functions avoid the need to have `map3()`, `map4()`, `map5()`, etc.
+
+>There’s a simple equivalence between `map2()` and `pmap()`: `map2(x, y, f)` is the same as `pmap(list(x, y), f)`.
+
+For example:
+
+```{r, echo=FALSE, out.width="300px"}
+identical(
+  pmap_dbl(list(x, wt), weighted.mean),
+  map2_dbl(x, wt, weighted.mean)
+  )
+```
+
+```{r}
+knitr::include_graphics(
+"https://d33wubrfki0l68.cloudfront.net/2eb2eefe34ad6d114da2a22df42deac8511b4788/5a538/diagrams/functionals/pmap-arg.png"
+)
+```
+
+>A big difference between `pmap()` and the other map functions is that _`pmap()` gives you much finer control over argument matching because you can name the components of the list._
+
+```{r}
+draws <- rcauchy(1000)
+trims <- c(0, 0.1, 0.2, 0.5)
+
+identical(
+  map_dbl(trims, function(input) mean(x = draws, trim = input)),
+  pmap_dbl(list(trim = trims), mean, x = draws)
+  )
+```
+
+Note that name matching makes `pmap()` very easy to work with data frames. 
+
+For example:
+
+```{r}
+params <- data.frame(       ## Here, the column names
+  n = c(1, 3, 5),           ## are critical!
+  mean = c(0, 10, 1000),
+  sd = c(1, 10, 100)
+)
+
+params
+
+pmap(params, rnorm)
+```
+
+___Exercises___
+
+>Rewrite the following code to use `iwalk()` instead of `walk2()`. What are the advantages and disadvantages?
+
+```{r}
+temp <- tempfile()
+dir.create(temp)
+
+cyls <- split(mtcars, mtcars$cyl)
+paths <- file.path(temp, paste0("cyl-", names(cyls), ".csv"))
+
+## ORIGINAL
+walk2(cyls, paths, write.csv)
+list.files(temp)
+
+## RE-WRITE
+names(cyls) <- paths      ## Disadvantage: names are overwritten
+iwalk(cyls, ~ write.csv)  ## Advantage: code is slightly shorter
+list.files(temp)
+```
+
+### Reduce and Accumulate
+
+>After the map family, the next most important family of functions is the reduce family. This family is much smaller, with only two main variants, and is used less commonly, but it's a powerful idea, gives us the opportunity to discuss some useful algebra, and powers the map-reduce framework frequently used for processing very large datasets.
+
+>[`reduce()`](https://purrr.tidyverse.org/reference/reduce.html) takes a vector of length `n` and produces a vector of length `1` by calling a function with a pair of values at a time: `reduce(1:4, f)` is equivalent to `f(f(f(1, 2), 3), 4)`.
+
+```{r, echo=FALSE, out.width="300px"}
+knitr::include_graphics(
+"https://d33wubrfki0l68.cloudfront.net/9c239e1227c69b7a2c9c2df234c21f3e1c74dd57/eec0e/diagrams/functionals/reduce.png"
+)
+```
+
+For example, suppose we have 4 lists that contain fruit, and we want to figure out how what are the fruits common to _all_ of them. To do this, we have to call intersect five times (each time using the results of the previous call).
+
+```{r}
+fruit_lists <- map(1:4, ~sample(fruit, 35))
+
+## This...
+fruit_lists[[1]] %>% 
+  intersect(fruit_lists[[2]]) %>% 
+  intersect(fruit_lists[[3]]) %>% 
+  intersect(fruit_lists[[4]]) 
+
+## ...is equivalent to this
+reduce(fruit_lists, intersect)
+
+
+```
+
+`accumulate()` is a variant of `reduce()` that returns all the intermediate results as well.
+
+```{r}
+accumulate(fruit_lists, intersect)
+```
+
+__Note.__ These two functions behave a lot like `sum()` and `cumsum()`.
+
+```{r}
+x <- c(4, 3, 10, 12)
+reduce(x, `+`) ## sum()
+accumulate(x, `+`) ## cumsum()
+```
+
+The `.init` argument. !!!!!!
 
 
 ### Predicates
