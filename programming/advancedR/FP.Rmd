@@ -67,7 +67,7 @@ integrate(dnorm, lower = 0, upper = Inf)
 
 ### Map
 
-```{r}
+```{r, message=FALSE}
 library(tidyverse)
 ```
 
@@ -432,8 +432,6 @@ fruit_lists[[1]] %>%
 
 ## ...is equivalent to this
 reduce(fruit_lists, intersect)
-
-
 ```
 
 `accumulate()` is a variant of `reduce()` that returns all the intermediate results as well.
@@ -450,10 +448,80 @@ reduce(x, `+`) ## sum()
 accumulate(x, `+`) ## cumsum()
 ```
 
-The `.init` argument. !!!!!!
+The `.init` argument allows you to supply an initial element to these functions.
+
+```{r, echo=FALSE, out.width="300px"}
+knitr::include_graphics(
+"https://d33wubrfki0l68.cloudfront.net/b5835b80325b22f9460992f7bc9de5e0cf56de2c/27994/diagrams/functionals/reduce-init.png"
+)
+```
+
+>So if we call `reduce(1, `+`, init)` the result will be `1 + init`.
+
+```{r}
+reduce(1:2, `+`, .init = 1)
+```
+
+This argument can become important if you are not sure what you're input might look like, and you want to avoid an error. In mathematics, we refer to the `.init` argument as the [identity element](https://en.wikipedia.org/wiki/Identity_element): "a special type of element of a set with respect to a binary operation on that set, which leaves any element of the set unchanged when combined with it."
+
+```{r}
+sum(integer())
+prod(integer())
+```
+
+>If you’re using `reduce()` in a function, you should always supply `.init`. Think carefully about what your function should return when you pass a vector of length `0` or `1`, and make sure to test your implementation.
+
+___Map-reduce___
+
+>You might have heard of map-reduce, the idea that powers technology like Hadoop. Now you can see how simple and powerful the underlying idea is: map-reduce is a map combined with a reduce. The difference for large data is that the data is spread over multiple computers. Each computer performs the map on the data that it has, then it sends the result to back to a coordinator which reduces the individual results back to a single result.
+>
+>As a simple example, imagine computing the mean of a very large vector, so large that it has to be split over multiple computers. You could ask each computer to calculate the sum and the length, and then return those to the coordinator which computes the overall mean by dividing the total sum by the total length.
 
 
 ### Predicates
+
+>A __predicate__ is a function that returns a single `TRUE` or `FALSE`, like `is.character()`, `is.null()`, or `all()`, and we say a predicate _matches_ a vector if it returns `TRUE.`
+
+The `purrr` package has three pairs of useful functions that apply a predicate to each element in a vector.
+
+1. _`some(.x, .p)` returns TRUE if any element matches; `every(.x, .p)` returns TRUE if all elements match._
+
+    _These are equivalent to `any(map_lgl(.x, .p))` and `all(map_lgl(.x, .p))`, except that they terminate early: `some()` returns `TRUE` when it sees the first `TRUE`, and `every()` returns `FALSE` when it sees the first `FALSE.`_
+
+2. _`detect(.x, .p)` returns the_ value _of the first match; `detect_index(.x, .p)` returns the_ location _of the first match._
+
+3. _`keep(.x, .p)`_ keeps _all matching elements; `discard(.x, .p)`_ drops _all matching elements._
+
+
+```{r}
+df <- data.frame(
+  x = 1:3,
+  y = c("a", "b", "c")  ## stringsAsFactors = TRUE by default
+  )
+
+every(df, is.factor)
+some(df, is.factor)
+
+detect(df, is.integer)
+detect_index(df, is.factor)
+
+keep(df, is.factor) %>% str()
+discard(df, is.factor) %>% str()
+```
+
+Note the following:
+
+>`map()` and `modify()` come in variants that also take predicate functions, transforming only the elements of `.x` where `.p` is `TRUE`.
+
+```{r}
+map_if(df, is.numeric, mean) %>% str()
+modify_if(df, is.numeric, max) %>% str()
+
+## this will drop the factor, and avoid recycling
+keep(df, is.numeric) %>% map(mean) %>% str()
+```
+
+___Exercises___
 
 
 
