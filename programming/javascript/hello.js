@@ -20,7 +20,7 @@ for (let value of otherValues) {  // "let" creates a variable called value
   console.log('the type of', value, 'is', typeof value);
 }
 
-for (let value in otherValues) {  // "in" instead of "for" prints out the index
+for (let value in otherValues) {  // "in" instead of "of" prints out the index
   console.log(value);             // indexing starts from 0 rather than 1!!
 }
 

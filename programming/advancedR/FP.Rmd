@@ -448,7 +448,7 @@ reduce(x, `+`) ## sum()
 accumulate(x, `+`) ## cumsum()
 ```
 
-The `.init` argument allows you to supply an initial element to these functions.
+Finally, the `.init` argument allows you to supply an initial element to these functions.
 
 ```{r, echo=FALSE, out.width="300px"}
 knitr::include_graphics(
@@ -491,7 +491,6 @@ The `purrr` package has three pairs of useful functions that apply a predicate t
 2. _`detect(.x, .p)` returns the_ value _of the first match; `detect_index(.x, .p)` returns the_ location _of the first match._
 
 3. _`keep(.x, .p)`_ keeps _all matching elements; `discard(.x, .p)`_ drops _all matching elements._
-
 
 ```{r}
 df <- data.frame(
