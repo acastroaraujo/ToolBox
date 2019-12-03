@@ -132,7 +132,7 @@ This algorithm "targets the distribution for errors (i.e. how much larger or sma
 We take the sample estimate $\hat \tau$ as the stand-in for "truth". If the boostraped $\hat \tau_b$ tend to be larger than $\hat \tau$, then we can assume that (on average) $\hat \tau$ is greater than $\tau$.
 
 ```{r}
-n <- 1000
+n <- 30
 observed_sample <- rnorm(n, mean = tau, sd = 2)
 
 ## observed standard deviation
@@ -167,7 +167,42 @@ mean(bootstrap_sds > sd(observed_sample))
 ```
 
 ```{r}
+n <- 30
+observed_sample <- rnorm(n, mean = tau, sd = 2)
 
+sim <- replicate(1e3, rnorm(n, mean = tau, sd = 2), simplify = FALSE) %>% 
+  map_dbl(sd)
+
+mean(sim / 2)
+
+mean(sim < 2)
+
+sd(observed_sample) / 2 ## sample sd is smaller than true sd
+
+boostrap_sim <- replicate(1e3, {
+  i <- sample(1:n, n, replace = TRUE)
+  sd(observed_sample[i]) - sd(observed_sample)
+})
+
+mean(boostrap_sim)
+
+
+sd(iris[iris$Species == "setosa", ]$Sepal.Length)
+
+boostrap_sim <- replicate(1e3, {
+  i <- sample(1:length(iris[iris$Species == "setosa", ]$Sepal.Length),
+              length(iris[iris$Species == "setosa", ]$Sepal.Length), replace = TRUE)
+  sd(iris[iris$Species == "setosa", ]$Sepal.Length[i]) - sd(iris[iris$Species == "setosa", ]$Sepal.Length)
+})
+
+
+mean(boostrap_sim)
+```
+
+```{r}
+url <- "https://raw.githubusercontent.com/TaddyLab/BDS/master/chapters/1-Uncertainty/data/web-browsers.csv"
+
+read_csv(url)
 ```
 
 
