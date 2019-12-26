@@ -14,7 +14,7 @@ editor_options:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, comment = "", fig.align = "center",
-                      fig.width = 8, fig.height = 8)
+                      fig.width = 5, fig.height = 4)
 
 library(tidyverse)
 
@@ -45,6 +45,8 @@ body {
 
 >All of this is taken from Noam Ross' online course, [___Generalized Additive Models in R___](https://noamross.github.io/gams-in-r-course/). 
 
+Note: Include the `family` argument in the `gam()` function to extend other types of generalized linear models.
+
 ****
 
 ## Introduction
@@ -67,7 +69,7 @@ tibble(x, y) %>%
 
 >We fit a GAM using the `gam()` function from the mgcv package. Here, when we fit this GAM, we wrap the independent variable, `x`, in the `s()`, that is smooth function to specify that we want this relationship to be flexible. A GAM can capture the nonlinear aspects of not only this relationship, but of many nonlinear relationships, because of the flexibility of ___splines___.
 
->The flexible smooths in GAMs are actually constructed of many smaller functions. These are called __basis functions__. Each smooth is the sum of a number of basis functions, and each basis function is multiplied by a coefficient, each of which is a parameter in the model. In the plot here on the left, we show the basis functions of a GAM where all the coefficients are the same. On the right, we show the same basis functions after model-fitting, where each has a coefficient fit to the data. You can see how these basis functions add up to create the overall smooth shape. So a single nonlinear relationship between a dependent and independent variable has several parameters, plus an intercept. This is different, and more complex, than a linear model, where each variable has only a single coefficient or parameter.
+>The flexible smooths in GAMs are actually constructed of many smaller functions. These are called __basis functions__. Each smooth line is the sum of a number of basis functions, and each basis function is multiplied by a coefficient, each of which is a parameter in the model. In the plot here on the left, we show the basis functions of a GAM where all the coefficients are the same. On the right, we show the same basis functions after model-fitting, where each has a coefficient fit to the data. You can see how these basis functions add up to create the overall smooth shape. So a single nonlinear relationship between a dependent and independent variable has several parameters, plus an intercept. This is different, and more complex, than a linear model, where each variable has only a single coefficient or parameter.
 
 ```{r, echo=FALSE, out.width="80%"}
 knitr::include_graphics(
@@ -120,7 +122,6 @@ knitr::include_graphics(
 
 >As you can see, a smooth with a small number of basis functions is limited in its wiggliness, while one with many basis functions is capable of capturing finer patterns.
 
-
 ```{r, fig.height=4, fig.width=5}
 k3 <- gam(y ~ s(x, k = 3), method = "REML") %>% predict()
 k15 <- gam(y ~ s(x, k = 15), method = "REML") %>% predict()
@@ -129,17 +130,207 @@ tibble(x, y, k3, k15) %>%
   ggplot(aes(x, y)) + 
   geom_point() + 
   geom_line(aes(y = k3, color = "k = 3")) + 
-  geom_line(aes(y = k10, color = "k = 15")) + 
+  geom_line(aes(y = k15, color = "k = 15")) + 
   theme(legend.position = "top") + 
   labs(color = "smoothing parameter")
 ```
 
 >Setting this value too low will prevent the model from being sufficiently wiggly. If it's high, though, the automatic smoothing parameter selection will prevent it from being too wiggly. We just don't want to set it very high, which can result in a model with more parameters than data, or one that is slow to fit.
 
-## Multiple Regression
+## Interactions
+
+_Categorical-continuous interaction,_
+
+By specifying the `by` argument to the `s()` function, we can tell R to calculate a different smooth for each unique category.
+
+```{r, fig.height=6, fig.width=8}
+## The data
+data("mpg", package = "gamair")
+
+## the model
+city_mod <- gam(city.mpg ~ s(weight, by = drive) + ## varying smooth
+                  s(length, by = drive) +          ## by "drive"
+                  s(price, by = drive) + 
+                  drive,                           ## varying intercept
+                data = mpg)
+
+summary(city_mod)
+```
+
+The first part of the `summary()` output is pretty straightforward. The second part, however, should be new. Here, the smooth coefficients are not displayed because each smooth has several coefficients. Instead we get `edf`, which means "effective degrees of freedom".
+
+>This value represents the complexity of the smooth. An edf of 1 is equivalent to a straight line. An edf of 2 is equivalent to a quadratic curve, and so on, with higher edfs describing more wiggly curves.
+
+>A good way to interpret significance for smooth terms in GAMs is this: a significant smooth term is one where you can not draw a horizontal line through the 95% confidence interval.
+
+## Partial effect plots
+
+```{r, fig.width=5, fig.height=4}
+data("mcycle", package = "MASS")
+
+mod <- gam(accel ~ s(times), data = mcycle)
+
+plot(mod, shade = TRUE, shade.col = "skyblue",
+     residuals = TRUE, pch = 20,      ## partial residuals
+     shift = coefficients(mod)[[1]],  ## shift by value of intercept
+     seWithMean = TRUE)               ## include uncertainty of intercept
+```
+
+Note. Use `gam.check()` for model diagnostics.
+
+## Concurvity
+
+Concurvity is analogous to collinearity, but it goes a bit further.
+
+>Even if two variables aren't collinear, they may have concurvity, that is, one may be a smooth curve of another.
+
+For example, $x_1$ and $x_2$ might form a parabola.
+
+Use the `concurvity()` to get an assessment of concurvity. 
+
+The `full` argument gives an overall assessment (when `TRUE`) or a pairwise concurvity (when `FALSE`).
 
 ```{r}
+mod <- gam(hw.mpg ~ s(length) + s(width) + s(height) + s(weight),
+           data = mpg, method = "REML")
+
+## height is least pre-determined by all other variables
+concurvity(mod, full = TRUE) 
+
+## weight and width have the greatest "worst-case" concurvity
+concurvity(mod, full = FALSE) %>% map(round, digits = 2)
+```
+
+## Spatial GAMs
+
+Here, we focus on variables that are best represented by _complex surfaces_, rather than smooth lines.
+
+>A common way to model geospatial data is to use an interaction term of `x` and `y` coordinates, along with individual terms for other predictors. The interaction term then accounts for the spatial structure of the data.
+
+>We represent interactions between variables as a smooth surface, so any combination of variables can take a different value. This is also a natural way to represent spatial data.
 
 ```
+## Interaction syntax
+gam(y ~ s(x1, x2), data = df, method = "REML")
+```
+
+```{r, echo=FALSE, out.width="80%"}
+knitr::include_graphics(
+"https://github.com/noamross/gams-in-r-course/blob/master/images/interactions-1-1.png?raw=true"
+)
+```
+
+__Example__
+
+```{r, fig.height=5, fig.width=5}
+data(meuse, package = "sp")
+glimpse(meuse)
+
+geo_mod <- gam(cadmium ~ s(x, y) +  ## x, y surface
+                 s(elev) +          ## elevation
+                 s(dist),           ## distance from river
+               data = meuse, method = "REML")
+
+summary(geo_mod)
+plot(geo_mod, pages = 1)
+```
+
+Note that interactions are represented as a contour plot.
+
+>A contour plot is not always the most intuitive way of plotting interactions, so mgcv has a couple of more options [with the `scheme` argument].
+
+```{r}
+## 3D plot
+plot(geo_mod, scheme = 1, select = 1)
+
+## Heat map (yellow higher, red is lower)
+plot(geo_mod, scheme = 2, select = 1)
+
+vis.gam(geo_mod, view = c("x", "y"), plot.type = "contour", 
+        too.far = 0.05)  ## 5% extrapolation
+
+vis.gam(geo_mod, view = c("x", "y"), plot.type = "contour", 
+        too.far = 0.5)  ## 50% extrapolation
+```
+
+
+## Interactions II
+
+__Factor-smooth interaction.__
+
+Previously, we talked about "categorical-continuous interaction" which were implemented using the `by` argument inside the `s()` function. We also added an additional linear term to make separate intercepts for each level. This last step is unnecessary when we use a so-called __factor-smooth__, which we implement by using the factor-smooth basis type.
+
+```{r}
+mod_sep <- gam(copper ~ s(dist, by = landuse) + landuse,
+               data = meuse, method = "REML")
+
+summary(mod_sep)
+
+```
+
+```{r, fig.height=8, fig.width=6}
+plot(mod_sep, pages = 1)
+```
+
+```{r}
+vis.gam(mod_sep, view = c("dist", "landuse"), plot.type = "persp")
+```
+
+```{r}
+mod_fs <- gam(copper ~ s(dist, landuse, bs = "fs"),
+              data = meuse, method = "REML")
+
+summary(mod_fs)
+plot(mod_fs, pages = 1)
+vis.gam(mod_fs, view = c("dist", "landuse"), plot.type = "persp")
+
+```
+
+>With factor-smooths, we do not get a different term for each level of the categorical variable. Rather, we get one overall interaction term. This means that they are not as good for distinguishing between categories. However, factor smooths are good for controlling for the effects of categories that are not our main variables of interest, especially when there are very many categories, or only a few data points in some categories.
+
+## Interactions III
+
+__Tensor-smooth interaction.__
+
+>Tensor smooths let us model interactions that operate on different scales, such as space and time.
+
+_A factor-smooth interaction_
+
+$$
+y = s(x_1, x_2) \hspace{1cm} \text{with smoothing parameter } \lambda
+$$
+Note: There is a single lambda value for the whole 2D smooth.
+
+_A tensor-smooth interaction_
+
+$$
+y = te(x_1, x_2) \hspace{1cm} \text{with smoothing parameters } \lambda_1, \ \lambda_2
+$$
+
+>Tensor smooths are more appropriate for interactions of variables with different scales or units. A tensor is similar to a regular two-dimensional smooth, but it has two smoothing parameters, one for each variable.
+
+>Tensor smooths are used similarly to regular smooths, one just uses `te()` instead of `s()` for them. Since there are multiple smoothing parameters, you can specify a different number of basis functions, or `k` values, for each smooth.
+
+>One other great advantage of tensor smooths is that they can be used to separate out interactions from individual univariate effects. Using __tensor interactions__, we can model only the interaction of two variables, and not their independent effects, which we estimate separately.
+
+$$
+y = s(x_1) + s(x_2) + ti(x_1, x_2)  \\\\ \text{with smoothing parameters } \lambda_1, \ \lambda_2 \ \lambda_3 \ \lambda_4
+$$
+
+>Note that each of these components has its own smoothing parameters and can have its own number of basis functions. This means we are estimating more parameters. Necessarily, such models need more data.
+
+```{r}
+geo_tensor_mod <- gam(cadmium ~ te(x, y, elev),
+                      data = meuse, method = "REML")
+
+summary(geo_tensor_mod)
+
+## separating interacting and independent effects
+geo_tensor_mod2 <- gam(cadmium ~ s(x, y) + s(elev) + ti(x, y),
+                       data = meuse, method = "REML")
+
+summary(geo_tensor_mod2)
+```
+
 
 
