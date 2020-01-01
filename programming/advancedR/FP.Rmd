@@ -79,7 +79,7 @@ map(1:3, function(x) x^2)  ## using anonymous or lambda function
 
 The name "map" comes from mathematics, where "an operation that associates each element of a given set with one or more elements of a second set".
 
-```{r, echo=FALSE, out.width="280px"}
+```{r, echo=FALSE, out.width="260px"}
 knitr::include_graphics(
 "https://d33wubrfki0l68.cloudfront.net/f0494d020aa517ae7b1011cea4c4a9f21702df8b/2577b/diagrams/functionals/map.png"
 )
@@ -239,8 +239,19 @@ bootstraps %>%
 
 - Iterate over any number of inputs with `pmap()`
 
+```{r, echo=FALSE}
+tibble(
+  ` ` = c("One argument", "Two arguments", "One argument + index", "N arguments"),
+  List = c("`map()`", "`map2()`", "`imap()`", "`pmap()`"),
+  Atomic = c("`map_lgl(), ...`", "`map2_lgl(), ...`", "`imap_lgl(), ...`", "`pmap_lgl(), ...`"),
+  `Same Type` = c("`modify()`", "`modify2()`", "`imodify()`", ""),
+  Nothing = c("`walk()`", "`walk2()`", "`iwalk()`", "`pwalk()`")
+  ) %>% 
+  kableExtra::kable() %>% 
+  kableExtra::kable_styling(bootstrap_options = "bordered")
+```
 
-INSERT TABLE
+
 
 __Same type of output as input: `modify()`__
 
@@ -352,7 +363,7 @@ identical(
   )
 ```
 
-```{r}
+```{r, echo=FALSE, out.width="350px"}
 knitr::include_graphics(
 "https://d33wubrfki0l68.cloudfront.net/2eb2eefe34ad6d114da2a22df42deac8511b4788/5a538/diagrams/functionals/pmap-arg.png"
 )
@@ -397,11 +408,11 @@ dir.create(temp)
 cyls <- split(mtcars, mtcars$cyl)
 paths <- file.path(temp, paste0("cyl-", names(cyls), ".csv"))
 
-## ORIGINAL
+## Original
 walk2(cyls, paths, write.csv)
 list.files(temp)
 
-## RE-WRITE
+## Solution
 names(cyls) <- paths      ## Disadvantage: names are overwritten
 iwalk(cyls, ~ write.csv)  ## Advantage: code is slightly shorter
 list.files(temp)
@@ -456,7 +467,7 @@ knitr::include_graphics(
 )
 ```
 
->So if we call `reduce(1, `+`, init)` the result will be `1 + init`.
+>So if we call ``reduce(1, `+`, init)`` the result will be `1 + init`.
 
 ```{r}
 reduce(1:2, `+`, .init = 1)
@@ -476,7 +487,6 @@ ___Map-reduce___
 >You might have heard of map-reduce, the idea that powers technology like Hadoop. Now you can see how simple and powerful the underlying idea is: map-reduce is a map combined with a reduce. The difference for large data is that the data is spread over multiple computers. Each computer performs the map on the data that it has, then it sends the result to back to a coordinator which reduces the individual results back to a single result.
 >
 >As a simple example, imagine computing the mean of a very large vector, so large that it has to be split over multiple computers. You could ask each computer to calculate the sum and the length, and then return those to the coordinator which computes the overall mean by dividing the total sum by the total length.
-
 
 ### Predicates
 
@@ -522,6 +532,443 @@ keep(df, is.numeric) %>% map(mean) %>% str()
 
 ___Exercises___
 
+>Implement the `span()` function from Haskell: given a list `x` and a predicate function `f`, `span(x, f)` returns the location of the longest sequential run of elements where the predicate is true. (Hint: you might find `rle()` helpful.)
 
+```{r}
+span <- function(x, f) {
+  ## this makes "values" and "lengths" available
+  list2env(rle(map_lgl(x, f)), envir = rlang::caller_env())
+  if (!any(values)) {
+    return(integer())
+  }
+  index <- which(lengths == max(lengths[values]))[[1]] ## lgl sub
+  first <- cumsum(lengths)[index] - (lengths[index] - 1) 
+  return(first:(first + lengths[index] - 1))
+}
+
+span(iris, is.factor)
+span(iris, is.numeric)
+```
+
+>Implement `arg_max()`. It should take a function and a vector of inputs, and return the Also implement the matching `arg_min()` function.
+
+```{r}
+arg_max <- function(x, f) {
+  output <- map_dbl(x, f)
+  x[output == max(output)] ## lgl subsetting
+}
+
+arg_min <- function(x, f) {
+  output <- map_dbl(x, f)
+  x[output == min(output)] ## lgl subsetting
+}
+```
 
 ### Extra
+
+__Math__
+
+>Functionals are very common in mathematics. The limit, the maximum, the roots (the set of points where $f(x) = 0$), and the definite integral are all functionals: given a function, they return a single number (or vector of numbers). At first glance, these functions don’t seem to fit in with the theme of eliminating loops, but if you dig deeper you’ll find out that they are all implemented using an algorithm that involves iteration.
+
+- `integrate()` finds the area under the curve defined by `f()`
+
+- `uniroot()` finds where `f()` hits zero
+
+- `optimise()` finds the location of the lowest (or highest) value of `f()`
+
+```{r, echo=FALSE, fig.width=5, fig.height=3}
+ggplot(data.frame(x = c(pi/2, 2*pi)), aes(x)) + 
+  stat_function(fun = sin) +
+  labs(y = "f(x)")
+```
+
+```{r}
+integrate(sin, lower = 2/pi, upper = 2*pi)
+uniroot(sin, lower = 2/pi, upper = 2*pi)
+optimise(sin, lower = 2/pi, upper = 2*pi)
+optimise(sin, lower = 2/pi, upper = 2*pi, maximum = TRUE)
+```
+
+__Matrices and arrays__
+
+The `map()` family of functions is designed to work with one-dimensional vectors. If we wish to work with n-dimensional vectors, we use `base::apply()`. It has four arguments:
+
+- `X`, _the matrix or array to summarise._
+
+- `MARGIN`, _an integer vector giving the dimensions to summarise over, 1 = rows, 2 = columns, etc. (The argument name comes from thinking about the margins of a joint distribution.)_
+
+- `FUN`, _a summary function._
+
+- `...` _other arguments passed on to `FUN`._
+
+```{r}
+A <- array(1:24, dim = c(4, 3, 2))
+A
+apply(A, MARGIN = 1, mean)
+apply(A, MARGIN = 2, mean)
+apply(A, MARGIN = 3, mean)
+```
+
+___Exercises___
+
+>Challenge: read about the [fixed point algorithm](https://mitpress.mit.edu/sites/default/files/sicp/full-text/book/book-Z-H-12.html#%25_idx_1096). Complete the exercises using R.
+
+A number $x$ is called a fixed point of a function $f$ if it satisfies the following equation:
+
+$$
+f(x) = x
+$$
+
+We can come up with a procedure that locates fixed-points by begining with an initial guess and aplying $f$ repeatedly until the value doesn't change much.
+
+```{r}
+fixed_point <- function(f, init, tolerance = 0.00001) {
+  if (abs(f(init) - init) <= tolerance) {
+    return(c("fixed point" = init))
+  } else {
+    fixed_point(f, f(init))    ## using recursion
+  }
+}
+
+fixed_point(cos, init = 5)
+```
+
+We can find an approximate solution to the equation $x = \cos x + \sin x$ using this method.
+
+```{r}
+fixed_point(function(x) cos(x) + sin(x), 1)
+```
+
+We can find the golden ratio $\phi$, which satisfies the equation $\phi = 1 + \frac{1}{\phi}$.
+
+```{r}
+fixed_point(function(x) 1 + 1/x, 1)
+```
+
+## Function Factories
+
+```{r, message=FALSE}
+library(rlang)
+```
+
+Function factories are functions that create functions.
+
+For example:
+
+```{r}
+power <- function(exp) {
+  function(x) {
+    x ^ exp
+  }
+}
+
+square <- power(2)
+square(4)
+cube <- power(3)
+cube(4)
+```
+
+R has three features that, combined with each other, lead to the possibility of function factories:
+
+1. In R, you bind a function to a name in the same way as you bind any object to a name: with the assignment operator `<-`.
+
+2. In R, functions capture (or enclose) the environments in which they're created, that's why they're sometimes called _closures_.
+
+3. In R, a function creates a new execution environment every time it is run. This environment is usually temporary, but here it becomes the enclosing environment of the "manufactured function".
+
+The key idea is as follows:
+
+>The enclosing environment of the manufactured function is an execution environment of the function factory.
+
+### Fundamentals
+
+Looking back at `square()` and `cube()`, note that they seem to be indistinguishable:
+
+```{r}
+square
+cube
+```
+
+How does R find the correct value associated with `exp`? When `square()` executes `x ^ exp` it finds `x` in the __execution environment__ and `exp` in its __enclosing environment.__
+
+In other words, `square()` and `cube()` have different enclosing environments, which correspond to the execution environments created each time the `power()` function is called.
+
+>This is what makes manufactured functions behave differently from one another: names in the enclosing environment are bound to different values.
+
+Finally, note that both environments share the same parent environment, the _global environment_ (i.e. the enclosing environment of `power()`).
+
+```{r}
+list(fn_env(square), fn_env(cube)) %>% 
+  map(env_parent) 
+```
+
+___Forcing evaluations___
+
+>Whenever you create a function factory, make sure every argument is evaluated, using `force()` as necessary if the argument is only used by the manufactured function.
+
+As it stands, the `power()` function may fall apart because of _lazy evaluation_.
+
+```{r}
+z <- 2
+square <- power(exp = z) ## exp evaluates lazily!
+z <- 3                   ## the binding changes
+square(2)                ## exp is only evaluated until now!
+```
+
+In other words, `x` is only evaluated (lazily) when `square()` is run, not when `power()` is run. This problem will arise everytime a binding changes in between calling the "factory" function and the "manufactured" function.
+
+Thus, we need to __force__ `x` to be evaluated when `power()` is run the first time.
+
+```{r}
+power2 <- function(exp) {
+  force(exp)
+  function(x) {
+    x ^ exp
+  }
+}
+
+z <- 2
+square <- power2(exp = z) ## exp is forced to evaluate.
+z <- 3                    ## the binding changes
+square(2)                 ## everything works out fine
+```
+
+__Stateful functions__
+
+Function factories let us create functions that mantain their state across different invocations. This was not previously possible because of the "frest start principle" (i.e. "every time a function is called a new environment is created to host its execution"). 
+
+We can do this by using the "super assignment" operator `<<-`, and by taking advantage of the fact that the enclosing environment of the manufactured functions is unique and remains constant.
+
+The following function records how many times it has been called:
+
+```{r}
+new_counter <- function() {
+  i <- 0
+  
+  function() {
+    i <<- i + 1
+    i
+  }
+}
+
+counter1 <- new_counter()
+counter2 <- new_counter()
+
+replicate(5, counter1())
+counter2()
+map_dbl(1:5, ~ counter1())
+```
+
+>Stateful functions are best used in moderation. As soon as your function starts managing the state of multiple variables, it’s better to switch to R6.
+
+___Garbage collection___
+
+The garbage collector will usually get rid of any large temporary object. _However, manufactured functions hold on to the execution environment, so you’ll need to explicitly unbind any large temporary objects with `rm()`_.
+
+```{r}
+f1 <- function(n) {
+  x <- runif(n)
+  m <- mean(x)
+  function() m
+}
+
+g1 <- f1(1e6)
+lobstr::obj_size(g1)
+
+f2 <- function(n) {
+  x <- runif(n)
+  m <- mean(x)
+  rm(x)
+  function() m
+}
+
+g2 <- f2(1e6)
+lobstr::obj_size(g2)
+```
+
+___Exercises___
+
+>Base R contains two function factories, `approxfun()` and `ecdf()`. Read their documentation and experiment to figure out what the functions do and what they return.
+
+```{r}
+x <- 1:10
+x[6] <- NA
+f <- approxfun(x)
+
+f(c(1, 10))
+```
+
+WTF!!
+
+
+>Create a function `pick()` that takes an index, `i`, as an argument and returns a function with an argument `x` that subsets `x` with `i`.
+
+```{r}
+pick <- function(i) {
+  function(x) {
+    x[[i]]
+  }
+}
+
+map_dbl(mtcars, pick(3)) ## extracts third element of each column
+```
+
+>Create a function that creates functions that compute the i^th^ central moment of a numeric vector. You can test it by running the following code:
+
+
+## HERE
+
+
+### Statistical Factories
+
+__Note, all of these examples can be tackled without function factories.__
+
+****
+___The Box-Cox Transformation___
+
+>The Box-Cox transformation (a type of power transformation) is a flexible transformation often used to transform data towards normality. It has a single parameter, $\lambda$, which controls the strength of the transformation.
+
+Note: The square-root and log transformations are special cases of Box-Cox.
+
+$$
+y_i(\lambda) = \cases{
+\frac{y_i^\lambda - 1}{\lambda} \hspace{0.5cm} \text{ if } \lambda \neq 0 \\\\
+\log(y_i) \hspace{0.35cm} \text{ if } \lambda = 0
+}
+$$
+
+We can express this as a simple function:
+
+```{r}
+boxcox1 <- function(x, lambda) {
+  stopifnot(length(lambda) == 1)
+  
+  if (lambda == 0) {
+    log(x)
+  } else {
+    (x ^ lambda - 1) / lambda
+  }
+}
+```
+
+Using a function factory, however, will let us explore different values of `lambda` more easily with __ggplot2__:
+
+```{r, fig.width=5, fig.height=3}
+boxcox2 <- function(lambda) {
+  if (lambda == 0) {
+    function(x) log(x)
+  } else {
+    function(x) (x ^ lambda - 1) / lambda
+  }
+}
+
+stat_boxcox <- function(lambda) {
+  stat_function(aes(color = as.character(lambda)), 
+                fun = boxcox2(lambda), 
+                size = 0.5) 
+}
+
+ggplot(data.frame(x = c(0, 5)), aes(x)) + 
+  map(seq(0, 2, 0.25), stat_boxcox) +
+  labs(color = expression(lambda))
+```
+
+___Bootstrap generators___
+
+A bootstrap generator is a function that yields a new bootstrap sample every time it's called:
+
+```{r}
+boot_permute <- function(df, variable) {
+  n <- nrow(df)
+  force(variable)
+  
+  function() {
+    col <- df[[variable]]
+    col[sample(n, replace = TRUE)]
+  }
+}
+
+boot_mpg <- boot_permute(mtcars, "mpg")
+
+map(1:3, ~ boot_mpg()) %>% map(head)
+```
+
+___Maximum Likelihood Estimation___
+
+The goal of MLE is to find the parameter values for a distribution, such that the observed data is "most likeley". 
+
+_Poisson Distribution_
+
+$$
+\Pr(\mathbf x \mid \lambda) = \prod_{i = 1}^n \frac{\lambda^{x_i} e^\lambda}{x_i !}
+$$
+
+Taking the log-likelihood, and doing some extra math, we can come up with this simplified equation:
+
+$$
+\log\bigg(\Pr(\mathbf x \mid \lambda)\bigg) = \log(\lambda) \sum_{i = 1}^n x_i - n \lambda - \sum_{i = 1}^n \log(x_i!)
+$$
+
+```{r}
+log_prob_poisson <- function(x, lambda) {
+  n <- length(x)
+  log(lambda) * sum(x) - n * lambda - sum(lfactorial(x))
+}
+```
+
+What value of $\lambda$ gives us the highest `log_prob_poisson`? The likelihood function is nothing more than the probability function seen through this perspective: _we want to find the `lambda` that makes the observed `x` the most likely._ In statistics, we usually highlight this change in perspective by writing $L(\lambda; \mathbf x)$. 
+
+In R, we can use a function factory.
+
+```{r}
+log_likelihood_poisson <- function(x) {
+  n <- length(x)   ## we don't need to force(x) because length(x) evaluates x
+  sum_x <- sum(x)               ## this avoids unnecessary computation later 
+  sum_lfx <- sum(lfactorial(x)) ## on, when calling the next function many times
+  function(lambda) {
+    log(lambda)*sum_x - n*lambda - sum_lfx
+  }
+}
+
+## Simulation with known lambda
+x <- rpois(1e3, lambda = 8)
+
+## Manufacture log likelihood
+log_likelihood <- log_likelihood_poisson(x)
+
+log_likelihood(lambda = 1)
+log_likelihood(lambda = 5)
+
+## Use optimise instead of trial-and-error
+optimise(log_likelihood, c(0, 100), maximum = TRUE)
+
+## Sanity check
+mod <- glm(x ~ 1, family = "poisson")
+exp(mod$coefficients) ## undo the link function
+```
+
+>Now, we could have solved this problem without using a function factory because `optimise()` passes `...` on to the function being optimised. That means we could use the log-probability function directly:
+
+```{r}
+optimise(log_prob_poisson, x = x, interval = c(0, 100), maximum = TRUE)
+```
+
+>The advantage of using a function factory here is fairly small, but there are two niceties:
+>
+>1. We can precompute some values in the factory, saving computation time in each iteration.
+>
+>2. The two-level design better reflects the mathematical structure of the underlying problem.
+>
+>__These advantages get bigger in more complex MLE problems, where you have multiple parameters and multiple data vectors__.
+
+
+
+
+
+
+___Mapping over many function factories___
+
+
+
+
+## Function Operators
