@@ -46,7 +46,8 @@ This notebook in particular is about __higher-order functions__. These functions
 
 ```{r, echo=FALSE, out.width="300px"}
 knitr::include_graphics(
-"https://d33wubrfki0l68.cloudfront.net/1dff819e743f280bbab1c55f8f063e60b6a0d2fb/2269e/diagrams/fp.png")
+"https://d33wubrfki0l68.cloudfront.net/1dff819e743f280bbab1c55f8f063e60b6a0d2fb/2269e/diagrams/fp.png"
+)
 ```
 
 ## Functionals
@@ -996,7 +997,135 @@ optimise(log_prob_poisson, x = x, interval = c(0, 100), maximum = TRUE)
 
 ___Mapping over many function factories___
 
-## here!!
+The following code creates many specially named power functions by iterating over a list of arguments:
 
+```{r}
+fnames <- list(
+  square = 2, 
+  cube = 3, 
+  root = 1/2, 
+  cuberoot = 1/3, 
+  reciprocal = -1
+)
+
+pfuns <- purrr::map(fnames, power2)
+
+pfuns$root(64)
+```
+
+>One downside of the current construction is that you have to prefix every function call with `funs$`. There are [four] ways to eliminate this additional syntax:
+
+1. Use `with()`.
+
+```{r}
+with(pfuns, cube(2))
+```
+
+2. `attach()` the functions to the search path, then `detach()` when you’re done:
+
+    >You've probably been told to avoid using `attach()`, and that's generally good advice. However, the situation is a little different to the usual because we’re attaching a list of functions, not a data frame. It’s less likely that you'll modify a function than a column in a data frame, so the some of the worst problems with `attach()` don't apply.
+
+3. You could copy the functions to the global environment with `env_bind()`.
+
+    ```{r}
+    rlang::env_bind(globalenv(), !!!pfuns)
+    ```
+
+    >You can later unbind those same names, but there's no guarantee that they haven't been rebound in the meantime, and you might be deleting an object that someone else created.
+
+    ```{r}
+    rlang::env_unbind(globalenv(), names(pfuns))
+    ```
+
+4. Use the built-in `list2env()` function. 
+
+    ```{r}
+    list2env(pfuns, envir = globalenv())
+    ```
 
 ## Function Operators
+
+>A __function operator__ is a function that takes one (or more) functions as input and returns a function as output.
+
+Note that they're simply _function factories_ that take functions as inputs. 
+
+The rest of this section has three parts. We overview two useful function operators —`safely()` and `memoise()`— and then we create our own function operator.
+
+### Capturing errors: `purrr::safely()`
+
+>One advantage of for-loops is that if one of the iterations fails, you can still access all the results up to the failure. If you do the same thing with a functional, you get no output, making it hard to figure out where the problem lies.
+>
+>`purrr::safely()` is a function operator that transforms a function to turn errors into data.
+
+Note: `safely()` uses `tryCatch()` patterns to handle errors.
+
+>Like all function operators, safely() takes a function and returns a wrapped function which we can call as usual:
+
+```{r}
+safe_sum <- safely(sum)
+```
+
+For example:
+
+```{r}
+x <- list(
+  c(0.512, 0.165, 0.717),
+  "oops",
+  c(0.064, 0.781, 0.427),
+  c(0.890, 0.785, 0.495)
+)
+
+safe_sum(x[[1]])
+safe_sum(x[[2]])
+```
+
+We can now use `safely()` with a functional.
+
+```{r}
+output <- map(x, safe_sum)
+str(output)
+```
+
+The output is hard to work with since we have four lists, and each of them is a list containing the `result` and the `error`. We can make the output easier to work with by `purrr::transpose()`, which turns our output into a list of results and a list of errors:
+
+```{r}
+inside_out_output <- transpose(output)
+str(inside_out_output)
+```
+
+Finally, use `map_lgl()` to extract an index that helps you track the source of your errors more easily:
+
+```{r}
+ok <- map_lgl(inside_out_output$error, is.null)
+
+x[!ok]
+```
+
+>You can use this same technique in many different situations. For example, imagine you're fitting a generalised linear model (GLM) to a list of data frames. GLMs can sometimes fail because of optimisation problems, but you still want to be able to try to fit all the models, and later look back at those that failed.
+
+```{r, eval=FALSE}
+fit_model <- function(df) {
+  glm(y ~ x1 + x2 * x3, data = df)
+}
+
+models <- transpose(map(datasets, safely(fit_model)))
+ok <- map_lgl(models$error, is.null)
+
+# which data failed to converge?
+datasets[!ok]
+
+# which models were successful?
+models[ok]
+```
+
+
+### Caching computations: `memoise::memoise()`
+
+
+
+### Downloading many websites
+
+
+
+
+
