@@ -790,15 +790,34 @@ ___Exercises___
 
 >Base R contains two function factories, `approxfun()` and `ecdf()`. Read their documentation and experiment to figure out what the functions do and what they return.
 
-```{r}
-x <- 1:10
-x[6] <- NA
-f <- approxfun(x)
+`approxfun()` returns a function that performs linear (or constant) interpolation.
 
-f(c(1, 10))
+```{r}
+x <- 0:100
+y <- x ^ 2
+
+foo <- approxfun(x, y)
+
+foo(3)
+foo(5)
+foo(20)
 ```
 
-## WTF!!
+The `ecdf()` uses `approxfun()` to create an _empirical cumulative distribution function_.
+
+```{r}
+x <- rnorm(150)
+
+foo <- approxfun(x = sort(x), 
+                 y = cumsum(table(x)) / length(x), 
+                 yleft = 0, yright = 1, f = 0,
+                 method = "constant", ties = "ordered")
+
+foo(0:3)
+ecdf(x)(0:3)
+pnorm(0:3)
+```
+
 
 
 >Create a function `pick()` that takes an index, `i`, as an argument and returns a function with an argument `x` that subsets `x` with `i`.
@@ -830,8 +849,6 @@ x <- runif(1000)
 
 all.equal(m1(x), 0)                                    ## tests for "near" equality
 all.equal(m2(x) * length(x) / (length(x) - 1), var(x)) ## bessel's correction
-
-?var
 ```
 
 
@@ -977,11 +994,9 @@ optimise(log_prob_poisson, x = x, interval = c(0, 100), maximum = TRUE)
 >
 >__These advantages get bigger in more complex MLE problems, where you have multiple parameters and multiple data vectors__.
 
-
-
 ___Mapping over many function factories___
 
-
+## here!!
 
 
 ## Function Operators
