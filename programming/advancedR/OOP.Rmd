@@ -1,34 +1,197 @@
 ---
 title: "<strong>Object-Oriented Programming</strong>"
 author: "andrés castro araújo"
-date: "`r Sys.Date()`"
+date: "`r format(Sys.Date(), '%b %d, %Y')`"
 output: 
   html_document: 
-    code_folding: show
-    theme: lumen
+    theme: paper
     toc: yes
-    toc_float: 
+    toc_float:
       collapsed: yes
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, comment = "", fig.align = "center")
 
-
-# library(tidyverse)
-# theme_set(theme_minimal(base_family = "Avenir", base_line_size = 0))
+library(purrr)
 ```
 
-
-```{r results="asis", echo=FALSE, eval=FALSE}
-cat("<style>
+```{css, echo=FALSE}
 blockquote {
     padding: 10px 20px;
     margin: 0 0 20px;
     font-size: 14px;
-    border-left: 5px solid #eee;
+    color: #828282;
+    border-left: 10px solid #EEE;
 }
-</style>")
+
+body {
+    font-size: 14px;
+}
+```
+
+>All of this is taken from Hadley Wickham's [__Advanced R__](https://adv-r.hadley.nz). CRC Press, 2019.
+
+****
+
+## Introduction
+
+Object-oriented programming (OOP) in R can get complicated because there are multiple OOP to choose from. Here we focus on __S3__, __R6__, and __S4__.
+
+>There is disagreement about the relative importance of the OOP systems. I think S3 is most important, followed by R6, then S4. Others believe that S4 is most important, followed by RC, and that S3 should be avoided. This means that different R communities use different systems.
+
+S3 and S4 use __generic function OOP__ which is different from the __encapsulated OOP__ used in Python.
+
+>S3 allows your functions to return rich results with user-friendly display and programmer-friendly internals. S3 is used throughout base R, so it’s important to master if you want to extend base R functions to work with new types of input.
+
+>R6 provides a standardised way to escape R’s copy-on-modify semantics. This is particularly important if you want to model objects that exist independently of R. Today, a common need for R6 is to model data that comes from a web API, and where changes come from inside or outside of R.
+
+>S4 is a rigorous system that forces you to think carefully about program design. It’s particularly well-suited for building large systems that evolve over time and will receive contributions from many programmers. This is why it is used by the Bioconductor project, so another reason to learn S4 is to equip you to contribute to that project.
+
+People like to use OOP systems because of __polymorphism__.
+
+>Polymorphism means that a developer can consider a function’s interface separately from its implementation, making it possible to use the same function form for different types of input.
+
+In short, it's what allows functions like `predict()` to work seamlessly with different types of models. It's also what allows `summary()` to produce different outputs for different variable classes:
+
+```{r}
+summary(iris$Sepal.Length)  ## Numeric 
+summary(iris$Species) ## Factor
+```
+
+In every OOP system, objects of different kinds have a different __class__. The implementation for a given class is called a __method__. 
+
+>Roughly speaking, a class defines what an object _is_ and methods describe what that object can _do_. 
+
+>The class defines the __fields__, the data possessed by every instance of that class. Classes are organised in a hierarchy so that if a method does not exist for one class, its parent’s method is used, and the child is said to __inherit__ behaviour. [...] The process of finding the correct method given a class is called __method dispatch__.
+
+We usually divide OOP systems into two types:
+
+1. __Encapsulated OOP__. Here, methods belong to classes and method calls typically look like this.
+
+    $$
+    \texttt{object.method(arg1, arg2)}
+    $$
+
+2. __Functional OOP__. Here, methods belong to __generic__ functions and method calls look like regular function calls:
+
+    $$
+    \texttt{generic(object, arg1, arg2)}
+    $$
+    
+    
+## Base Types
+
+```{r}
+library(sloop)
+```
+
+When people talk about R objects there's one potential source of confusion. John Chambers famously said that "Everything that exists in R is an object". But "while everything _is_ an object, not everything is object-oriented".
+
+>This confusion arises because the base objects come from S, and were developed before anyone thought that S might need an OOP system. The tools and nomenclature evolved organically over many years without a single guiding principle.
+
+Here we distinguish between __base objects__ and __OO objects__. 
+
+```{r, echo=FALSE, out.width="160px"}
+knitr::include_graphics(
+"https://d33wubrfki0l68.cloudfront.net/5d6b4926530f3da70f16b54dcdf1a55eb8fa3d71/703e0/diagrams/oo-venn.png"
+)
+```
+
+We use `sloop::otype()` to figure out which is which.
+
+```{r}
+otype(1:10)
+otype(iris)
+```
+
+>Technically, the difference between base and OO objects is that OO objects have a "class" attribute:
+
+```{r}
+attr(1:10, "class")
+attr(iris, "class")
+```
+
+_Note. The class() function returns misleading results when applied to base objects_
+
+```{r}
+class(1:10)
+```
+
+___Base types___
+
+>While only OO objects have a class attribute, every object has a _base type_.
+
+```{r}
+typeof(1:10)
+typeof(iris)
+```
+
+>Base types do not form an OOP system because functions that behave differently for different base types are primarily written in C code that uses switch statements.
+
+Here's an example of R base objects and their C equivalents:
+
+__Vectors__
+
+```{r, echo=FALSE}
+tibble::tribble(
+  ~R, ~C,
+  "`NULL`",  "`NILSXP`", 
+  "`logical`", "`LGLSXP`",
+  "`integer`", "`INTSXP`",
+  "`double`", "`REALSXP`",
+  "`complex`", "`CPLXSXP`",
+  "`character`", "`STRSXP`",
+  "`list`", "`VECSXP`", 
+  "`raw`", "`RAWSXP`"
+) %>% 
+  kableExtra::kable() %>% 
+  kableExtra::kable_styling(bootstrap_options = "bordered")
+```
+
+```{r}
+typeof(1)
+typeof(1L)
+typeof(1i)
+```
+
+__Functions__
+
+```{r, echo=FALSE}
+tibble::tribble(
+  ~R, ~C,
+  "`closure`", "`CLOSXP`",
+  "`special`", "`SPECIALSXP`",
+  "`builtin`", "`BUILTINSXP`"
+) %>% 
+  kableExtra::kable() %>% 
+  kableExtra::kable_styling(bootstrap_options = "bordered")
+```
+
+```{r}
+typeof(sum)
+typeof(`<-`)
+typeof(mean)
+```
+
+_In total, there are 25 different base types._
+
+A final note. There's a "numeric" type of sorts which causes great confusion.
+
+1. Sometimes "numeric" is synonymous with "double" (e.g. `as.numeric()` is identical to `as.double()`)
+
+2. S3 and S4 systems use "numeric" for picking methods that work with either "double" or "integer" types.
+
+```{r}
+sloop::s3_class(1)
+sloop::s3_class(1L)
+```
+
+3. Finally, we are sometimes interested in objects that behave like numbers. For example, factors are of type "integer" but don't behave like numbers.
+
+```{r}
+typeof(iris$Species)
+is.numeric(iris$Species)
 ```
 
 ## S3
@@ -39,11 +202,6 @@ S3 is R's first and most used Object-Oriented system (it's used in the `base` an
 
 See [__vctrs__](https://vctrs.r-lib.org/).
 
-## Background knowledge
-
-https://adv-r.hadley.nz/vectors-chap.html#attributes
-
-https://adv-r.hadley.nz/vectors-chap.html#s3-atomic-vectors
 
 
 
