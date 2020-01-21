@@ -176,7 +176,9 @@ typeof(mean)
 
 _In total, there are 25 different base types._
 
-A final note. There's a "numeric" type of sorts which causes great confusion.
+A final note. 
+
+R users talk about a "numeric" type, which has become a permanent source of confusion for some of us. This is because "numeric" has at least three different meanings in R:
 
 1. Sometimes "numeric" is synonymous with "double" (e.g. `as.numeric()` is identical to `as.double()`)
 
@@ -200,9 +202,371 @@ S3 is R's first and most used Object-Oriented system (it's used in the `base` an
 
 > Since S3 has few built-in constraints, the key to its successful use is applying the constraints yourself. 
 
-See [__vctrs__](https://vctrs.r-lib.org/).
+1. An S3 object is a base type with _at least_ a `class` attribute.
+
+    For example, factors are integer types, have a `class` attribute "factor", and also a "levels" attribute.
 
 
+    ```{r}
+    typeof(iris$Species)
+    attributes(iris$Species)
+    ```
 
+    If you `unclass()` a factor, it will lose it's special behavior.
+    
+    ```{r}
+    summary(iris$Species)
+    ```
 
+- An S3 object behaves differently from its underlying base type whenever it’s passed to a __generic__ function.
+
+    ```{r}
+    ftype(summary)
+    str(iris$Species)
+    str(unclass(iris$Species))
+    ```
+
+    >The generic is a middleman: its job is to define the interface (i.e. the arguments) then find the right implementation for the job. The implementation for a specific class is called a __method__, and the generic finds that method by performing __method dispatch__.
+    
+NOTE about R's inconsistency with the generic.class() scheme
+
+_Exercises_
+
+### Classes
+
+S3 has no formal definition of __class__. To make an object an instance of a class, you simply set the _class attribute_.
+
+```{r}
+# Create and assign class in one step
+x <- structure(list(), class = "my_class") ## you can set any attribute here
+
+# Create, then set class
+x <- list()
+class(x) <- "my_class"
+```
+
+>You can determine the class of an S3 object with `class(x)`, and see if an object is an instance of a class using `inherits(x, "classname")`.
+
+```{r}
+class(x)
+inherits(x, "my_class")
+```
+
+>When using a class in a package, I recommend including the package name in the class name. That ensures you won’t accidentally clash with a class defined by another package.
+
+>S3 has no checks for correctness which means you can change the class of existing objects:
+
+```{r, error=TRUE}
+# Create a linear model
+mod <- lm(log(mpg) ~ log(disp), data = mtcars)
+class(mod)
+print(mod)
+
+# Turn it into a date (?!)
+class(mod) <- "Date"
+
+# Unsurprisingly this doesn't work very well
+print(mod)
+
+# Turning it back to normal
+class(mod) <- "lm"
+print(mod)
+```
+
+In practice, this immense flexibility shouldn't cause any problems.
+
+>R doesn’t stop you from shooting yourself in the foot, but as long as you don’t aim the gun at your toes and pull the trigger, you won’t have a problem.
+
+Wickham recommends having three functions when constructing new classes:
+
+1. _A low-level **constructor**, `new_myclass()`, that efficiently creates new objects with the correct structure._ You should _always_ provide a constructor.
+
+2. _A **validator**, `validate_myclass()`, that performs more computationally expensive checks to ensure that the object has correct values._
+
+3. _A user-friendly **helper**, `myclass()`, that provides a convenient way for others to create objects of your class._
+
+#### Constructors
+
+The S3 system has no way to ensure that all objects of a given class have the same structure (i.e. "the same base type and the same attributes with the same types"). This is why we should use constructors to _enforce_ a consistent structure.
+
+In general, these constructors should follow the same basic principles:
+
+- They should have one argument for the base object, and one for each attribute.
+
+- They should check the type of the base object and the types of each attribute.
+
+_Example: The S3 `Date` class._
+
+```{r}
+new_Date <- function(x = double()) {
+  stopifnot(is.double(x))
+  structure(x, class = "Date")
+}
+
+class(new_Date(0))
+```
+
+_Example: The S3 `difftime` class._
+
+```{r}
+new_difftime <- function(x = double(), units = "secs") {
+  stopifnot(is.double(x))
+  units <- match.arg(units, c("secs", "mins", "hours", "days", "weeks"))
+
+  structure(x,
+    class = "difftime",
+    units = units
+  )
+}
+
+new_difftime(c(1, 4, 12), units = "week")
+new_difftime(0, units = "mins")
+```
+
+>The constructor is a developer function: it will be called in many places, by an experienced user. That means it’s OK to trade a little safety in return for performance, and you should avoid potentially time-consuming checks in the constructor.
+
+#### Validators
+
+Constructors only check that types are correct. But some classes require complicated checks for validity.
+
+_Example: The S3 `factor` class._
+
+```{r, error=TRUE}
+new_factor <- function(x = integer(), levels = character()) {
+  stopifnot(is.integer(x))
+  stopifnot(is.character(levels))
+  
+  structure(x, class = "factor", levels = levels)
+}
+
+new_factor(1:5, "a")
+```
+
+>Rather than encumbering the constructor with complicated checks, it’s better to put them in a separate function. Doing so allows you to cheaply create new objects when you know that the values are correct, and easily re-use the checks in other places.
+
+```{r, error=TRUE}
+validate_factor <- function(x) {
+  values <- unclass(x)
+  levels <- attr(x, "levels")
+
+  if (!all(!is.na(values) & values > 0)) {
+    stop(
+      "All `x` values must be non-missing and greater than zero",
+      call. = FALSE
+    )
+  }
+  
+  if (length(levels) < max(values)) {
+    stop(
+      "There must be at least as many `levels` as possible values in `x`",
+      call. = FALSE
+    )
+  }
+  x
+}
+  
+validate_factor(new_factor(0:1, "a"))
+validate_factor(new_factor(1:5, "a"))
+```
+
+#### Helpers
+
+Helpers strive to make the life of end users as easy as possible.
+
+A helper should always:
+
+1. _Have the same name as the class, e.g. `myclass()`._
+
+2. _Finish by calling the constructor, and the validator, if it exists._
+
+3. _Create carefully crafted error messages tailored towards an end-user._
+
+4. _Have a thoughtfully crafted user interface with carefully chosen default values and useful conversions._
+
+It's hard to give any general advice for this last bullet point, but Wickham does note three common patterns:
+
+- _Sometimes all the helper needs to do is coerce its inputs to the desired type._
+
+    ```{r, error=TRUE}
+    new_difftime(1:10)
+    ```
+    
+    >It’s not the job of the constructor to be flexible, so here we create a helper that just coerces the input to a double.
+
+    ```{r, error=TRUE}
+    difftime <- function(x = double(), units = "secs") {
+      x <- as.double(x)
+      new_difftime(x, units = units)
+    }
+    
+    difftime(1:10)
+    ```
+
+- _Often, the most natural representation of a complex object is a string. For example, it’s very convenient to specify factors with a character vector._
+
+```{r}
+factor <- function(x = character(), levels = unique(x)) {
+  # match returns a vector of the positions of (first) matches of its first
+  # argument in its second.
+  ind <- match(x, levels)
+  validate_factor(new_factor(ind, levels))
+}
+
+x <- sample(letters[1:5], 10, replace = TRUE)
+factor(x)
+```
+
+- _Some complex objects are most naturally specified by multiple simple components._
+
+    >For example, it’s natural to construct a date-time by supplying the individual components (year, month, day etc). That leads to this `POSIXct()` helper that resembles the existing `ISODatetime()` function:
+        
+    ```{r}
+    POSIXct <- function(year = integer(), 
+                        month = integer(), 
+                        day = integer(), 
+                        hour = 0L, 
+                        minute = 0L, 
+                        sec = 0, 
+                        tzone = "") {
+      ISOdatetime(year, month, day, hour, minute, sec, tz = tzone)
+    }
+    
+    POSIXct(2020, 1, 1, tzone = "America/New_York")
+    ```
+    
+
+___Exercises___
+
+>Write a constructor for data.frame objects. What base type is a data frame built on? What attributes does it use? What are the restrictions placed on the individual elements? What about the names?
+
+Data frames are built on top of named lists of vectors. Besides `class`, it has column `names` and `row.names` for attributes.
+
+```{r}
+typeof(mtcars)
+attributes(mtcars)
+```
+
+A `data.frame` constructor:
+
+```{r}
+new_data.frame <- function(x = list(), row.names = NULL) {
+  stopifnot(is.list(x))
+  
+  # Check all inputs are the same length
+  rows <- unique(lengths(x))
+  stopifnot(length(rows) <= 1)
+  
+  if (is.null(row.names)) {
+     row.names <- if (length(rows) == 0) integer() else seq_along(1:rows)
+   } else {
+     stopifnot(is.character(row.names), 
+               length(row.names) == unique(lengths(x)))
+   }
+  
+  structure(x, class = "data.frame", row.names = row.names)
+}
+
+new_data.frame()
+new_data.frame(list(c1 = 1:2, c2 = 2:3))
+new_data.frame(list(c1 = 1:2, c2 = 2:3), row.names = c("a", "b"))
+```
+
+>Read the documentation for utils::as.roman(). How would you write a constructor for this class? Does it need a validator? What might a helper do?
+
+`as.roman` turns integer numbers into roman numerals. It creates an object of class "roman".
+
+```{r}
+r <- as.roman(1:5)
+attributes(r)
+```
+
+```{r}
+new_roman <- function(x = integer()) {
+  stopifnot(is.integer(x))
+  structure(x, class = "roman")
+}
+
+r <- new_roman(1:5)
+r
+r^2
+```
+
+It needs a validator because "only numbers between 1 and 3899 have a unique representation as roman numbers, and hence others result in `as.roman(NA)`.
+
+```{r, error=TRUE}
+validate_roman <- function(x) {
+  values <- unclass(x)
+
+  if (any(values < 1 | values > 3899)) {
+    stop(
+      "Roman numbers must fall between 1 and 3899.",
+      call. = FALSE
+    )
+  }
+  x
+}
+
+validate_roman(4000L)
+```
+
+A helper function could be used to coerce real numbers into integers.
+
+```{r}
+roman <- function(x = integer()) {
+  x <- as.integer(x)
+  validate_roman(new_roman(x))
+}
+
+roman(rpois(5, 100))
+```
+
+## Generics and methods
+
+S3 generics perform __method dispatch__, they find the specific implementation for a given class. This gets done by using the `UseMethod()` function, which is called by every generic (with the exception of _internal generics_).
+
+>`UseMethod()` takes two arguments: the name of the generic function (required), and the argument to use for method dispatch (optional). If you omit the second argument, it will dispatch based on the first argument, which is almost always what is desired.
+
+For example:
+
+```{r}
+print
+mean
+```
+
+Thus, creating a new generic is a simple as this:
+
+```{r}
+my_new_generic <- function(x) {
+  UseMethod("my_new_generic")
+}
+```
+
+>When a function calling `UseMethod("fun")` is applied to an object with class attribute `c("first", "second")`, the system searches for a function called `fun.first` and, if it finds it, applies it to the object. If no such function is found a function called `fun.second` is tried. If no class name produces a suitable function, the function `fun.default` is used, if it exists, or an error results.
+
+```{r, error=TRUE}
+my_new_generic(1L)
+```
+
+In the above example, `1L` has an implicit class `c("integer", "numeric")`.
+
+>Most vectors have class the result of `mode(x)`, except that integer vectors have class `c("integer", "numeric")` and real vectors have class `c("double", "numeric")`.
+
+__How does method dispatch actually work?__
+
+`UseMethod()` basically creates a vector of method names, and then looks for each potential method in turn.
+
+```{r, eval=FALSE}
+paste0("generic", ".", c(class(x), "default"))
+```
+
+>We can see this in action with `sloop::s3_dispatch()`. You give it a call to an S3 generic, and it lists all the possible methods. 
+
+```{r}
+x <- Sys.Date()
+s3_dispatch(print(x))
+```
+
+Here,  "=>" indicates the method that is called, whereas "*" indicates a method that is not called, even though it is defined.
+
+> The “default” class is a special __pseudo-class.__ This is not a real class, but is included to make it possible to define a standard fallback that is found whenever a class-specific method is not available.
 
