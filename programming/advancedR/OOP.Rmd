@@ -208,29 +208,65 @@ S3 is R's first and most used Object-Oriented system (it's used in the `base` an
 
 
     ```{r}
-    typeof(iris$Species)
-    attributes(iris$Species)
+    fx <- factor(c("b", "a", "c"))
+    typeof(fx)
+    attributes(fx)
     ```
 
     If you `unclass()` a factor, it will lose it's special behavior.
     
     ```{r}
-    summary(iris$Species)
+    unclass(fx)  ## equivalent to attr(fx, "class") <- NULL
     ```
 
 - An S3 object behaves differently from its underlying base type whenever it’s passed to a __generic__ function.
 
+    >A generic function defines an interface, which uses a different implementation depending on the class of an argument (almost always the first argument).
+
     ```{r}
-    ftype(summary)
-    str(iris$Species)
-    str(unclass(iris$Species))
+    sloop::ftype(str)
+    str(fx)
+    str(unclass(fx))
     ```
 
     >The generic is a middleman: its job is to define the interface (i.e. the arguments) then find the right implementation for the job. The implementation for a specific class is called a __method__, and the generic finds that method by performing __method dispatch__.
     
-NOTE about R's inconsistency with the generic.class() scheme
+All S3 methods are functions with a special naming scheme: `generic.class()`.  
 
-_Exercises_
+```{r}
+print.factor(fx)
+```
+
+But you should never call the method directly, instead rely on the generic to find the right function for you.
+
+___Exercises.___
+
+>Make a list of commonly used base R functions that contain `.` in their name but are not S3 methods.
+
+Many functions in base R are point-separated, even though they are not `generic.method()` functions. They were written before S3. We can check if they're _methods_ using `sloop::ftype()`.
+
+```{r}
+sloop::ftype(print.factor)
+sloop::ftype(t.test)
+sloop::ftype(is.factor)
+```
+
+Here's a list of common point-separated functions that are _not_ methods:
+
+```{r, eval=FALSE}
+install.packages()
+read.csv()
+list.files()
+download.file()
+data.frame()
+as.character()
+Sys.Date()
+all.equal()
+do.call()
+on.exit()
+```
+
+Unsurprisingly, many of these functions have "tidyverse" replacements that eliminate this ambiguity (e.g. `readr::read_csv()`).
 
 ### Classes
 
