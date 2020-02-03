@@ -595,7 +595,16 @@ __How does method dispatch actually work?__
 paste0("generic", ".", c(class(x), "default"))
 ```
 
->We can see this in action with `sloop::s3_dispatch()`. You give it a call to an S3 generic, and it lists all the possible methods. 
+This can create some very weird bugs if you are not careful about class names. For example, by creating a vector of class "test" and then calling the `t()` for matrix transposition, we end up calling the unrelated `t.test()` function.
+
+```{r}
+x <- structure(1:10, class = "test")
+t(x)
+```
+
+This is the most compelling reason to why you should _never_ use `.`'s in function names.
+
+We can see method dispatch in action with the `sloop::s3_dispatch()` function, which lists all possible methods when you call an S3 generic inside of it.
 
 ```{r}
 x <- Sys.Date()
@@ -604,5 +613,69 @@ s3_dispatch(print(x))
 
 Here,  "=>" indicates the method that is called, whereas "*" indicates a method that is not called, even though it is defined.
 
-> The “default” class is a special __pseudo-class.__ This is not a real class, but is included to make it possible to define a standard fallback that is found whenever a class-specific method is not available.
+> The "default" class is a special __pseudo-class.__ This is not a real class, but is included to make it possible to define a standard fallback that is found whenever a class-specific method is not available.
+
+>`sloop::s3_dispatch()` lets you find the specific method used for a single call. What if you want to find all methods defined for a generic or associated with a class? That's the job of `sloop::s3_methods_generic()` and `sloop::s3_methods_class()`:
+
+```{r}
+s3_methods_generic("mean")  # similar to methods()
+s3_methods_class("table")
+```
+
+___Exercises.___
+
+>Which base generic has the greatest number of defined methods?
+
+```{r}
+objs <- rlang::pkg_env("base") %>% as.list()
+objs <- objs[map_lgl(objs, is.function)]
+objs <- objs[map_lgl(names(objs), sloop::is_s3_generic)]
+generic_function_names <- names(objs)
+
+library(dplyr)
+
+number_of_methods <- function(x) {
+  s3_methods_generic(x) %>% 
+    #filter(source == "base") %>% ## the number of methods can depend on the number
+    nrow()                      ## of packages attached to the search path
+}
+
+tibble::tibble(fname = generic_function_names) %>% 
+  mutate(n = map_int(fname, number_of_methods)) %>% 
+  arrange(desc(n))
+```
+
+>Carefully read the documentation for `UseMethod()` and explain why the following code returns the results that it does.
+
+```{r}
+g <- function(x) {
+  x <- 10
+  y <- 10
+  UseMethod("g")
+}
+
+g.default <- function(x) { c(x = x, y = y) } 
+
+x <- 1
+y <- 1
+
+g.default(1)
+g(1)
+```
+
+Calling `g.default(x = 1)` retrieves `y` from the global environment. But typing `g()` retrieves `y` from the environment enclosed by `g()`, similar to what would happen if `g()` was a function factory.
+
+>What are the arguments to `[`? Why is this a hard question to answer?
+
+The subsetting operator `[` is both "primitive" and "generic". Thus, we can't really take a look into its arguments. We can, however, take a look at some of the methods it implements.
+
+```{r}
+formals(`[.factor`)
+formals(`[.Date`)
+formals(`[.table`)
+formals(`[.numeric_version`)
+```
+
+It's very likely that `[`'s arguments are just `x` and `...`. But we can't know for sure unless we inspect the underlying C code.
+
 
