@@ -556,7 +556,7 @@ roman <- function(x = integer()) {
 roman(rpois(5, 100))
 ```
 
-## Generics and methods
+### Generics and methods
 
 S3 generics perform __method dispatch__, they find the specific implementation for a given class. This gets done by using the `UseMethod()` function, which is called by every generic (with the exception of _internal generics_).
 
@@ -677,5 +677,57 @@ formals(`[.numeric_version`)
 ```
 
 It's very likely that `[`'s arguments are just `x` and `...`. But we can't know for sure unless we inspect the underlying C code.
+
+### Object styles
+
+__Vector style__ classes like `Factor` and `Date` have one key property: `length(x)` represents the number of observations in the the vector. There are three object styles that don't have this property.
+
+- __Record style__ objects use a list of equal-length vectors to represent individual components of the object. For example, `POSIXlt` is a list of 11 date-time components: year, month, day, hour, min, sec, etc.
+
+    ```{r}
+    x <- as.POSIXlt(c("2020-01-01", "2020-01-02"))
+    str(unclass(x))
+    ```
+
+    Record style classes override `length()` and subsetting methods to conceal this implementation detail.
+    
+    ```{r}
+    length(x)
+    x[[1]]
+    ```
+    
+- __Data frames__ are similar to record style objects in that both use lists of equal length vectors. But data frames are two dimensional, and the individual components are readily exposed to the user. The number of observations is given by `nrow(df)`, whereas `length(df)` gives us the number of columns.
+
+- __Scalar objects__ typically use a list to represent one single thing. For example, an `lm` object is actually a list of length 12, even though it represents one model.
+
+___Exercises.___
+
+>Categorise the objects returned by `lm()`, `factor()`, `table()`, `as.Date()`, `as.POSIXct()`, `ecdf()`, `ordered()`, `I()` into the styles described above.
+
+```{r, echo=FALSE}
+tibble::tribble(
+  ~`object from`, ~style,
+  "`lm()`","scalar", 
+  "`ecdf()`", "scalar",
+  "`table()`", "vector",
+  "`as.Date()`", "vector",
+  "`as.POSIXct()`", "vector",
+  "`as.POSIXlt()`", "record",
+  "`I()`", "`other`"
+) %>% 
+  kableExtra::kable() %>% 
+  kableExtra::kable_styling(bootstrap_options = "bordered")
+```
+
+### Inheritance
+
+
+
+
+
+
+
+https://vctrs.r-lib.org/articles/s3-vector.html
+
 
 
