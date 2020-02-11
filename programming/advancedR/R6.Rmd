@@ -46,6 +46,8 @@ The R6 system has two special properties:
     object             ## obj has a different value
     ```
 
+    More importantly, it means that objects are not copied when modified, this is why we need to `$clone()` R6 objects instead. More on that later.
+
 These properties make it resemble OOP in Python, JavaScript, or basically any other popular programming language (except for Julia).
 
 ## Classes and methods
@@ -324,19 +326,69 @@ The `R6Class()` function has two other arguments that work similarly to `public`
 
 - `private` allows you to create fields and methods that are only available from within the class, not outside of it.
 
-- `active` allows you to use accessor functions to define dynamic, or active, fields.
+    It works just like the `public` argument. You give it a list of methods (functions) and fiels (everything else). These are available within methods using `private$` (instead of `$self`). You cannot access private fields or methods outside of the class.
+    
+    >The distinction between public and private fields is important when you create complex networks of classes, and you want to make it as clear as possible what it's ok for others to access. Anything that's private can be more easily refactored because you know others aren't relying on it. Private methods tend to be less important in R compared to other programming languages because the object hierarchies in R tend to be simpler.
 
+- `active` allows you to define _dynamic_ (or _active_) fields. Active fields are implemented using __active bindings__. Each of these active bindings looks like a field from the outside, but is defined with functions (like methods).
 
+    >Each active binding is a function that takes a single argument: `value`. If the argument is `missing()`, the value is being retrieved; otherwise it's being modified.
+    
+    For example:
+    
+    ```{r}
+    Rando <- R6::R6Class("Rando", active = list(
+      random = function(value) {
+        if (missing(value)) {
+          runif(1)  
+        } else {
+          stop("Can't set `$random`", call. = FALSE)
+        }
+      }
+    ))
+    
+    y <- Rando$new()
+    y$random
+    y$random
+    ```
+    
+## Cloning
 
+>The primary consequence of reference semantics is that objects are not copied when modified.
+
+```{r}
+x <- Accumulator$new() 
+y <- x
+
+## They have the same memory address:
+c(lobstr::obj_addr(y), lobstr::obj_addr(x))
+
+y$add(10)
+c(y = y$sum, x = x$sum)
+```
+
+Instead, we need to `$clone()` the object.
+
+```{r}
+x <- Accumulator$new() 
+y <- x$clone()
+
+## They have a different memory address:
+c(lobstr::obj_addr(y), lobstr::obj_addr(x))
+
+y$add(10)
+c(y = y$sum, x = x$sum)
+```
+
+****
+
+Read more about R6 [__here__](https://r6.r-lib.org/).
+
+****
 
 To do:
 
-update with slides from 
-
-https://blog.revolutionanalytics.com/2017/07/the-r6-class-system.html
+update with slides from https://blog.revolutionanalytics.com/2017/07/the-r6-class-system.html
 
 functional vs encapsulated
 
-public, private, initialize, inherits and super
-
-here class methods are separate from objects, and objects are not mutable (that is, they can't be modified directly by methods; you have to assign modified values to the object directly). The R6 system, by contrast, is an encapsulated object oriented system akin to those in Java or C++, where objects contain methods in addition to data, and those methods can modify objects directly. 
