@@ -1,0 +1,113 @@
+---
+title: "model-comparison"
+author: "andrés castro araújo"
+date: "2/12/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Model Comparison
+
+https://sci-hub.tw/10.1177/0081175018793654
+
+THIS SECTION IS A BIT IFFY FOR THE MOMENT.
+
+
+In this section we introduce other measures that try to approximate out-of-sample predictive accuracy, which automatically deals with the problem of overfitting. We focus on leave-one-out cross-validation (or [__`loo`__](https://mc-stan.org/loo/index.html)) because it's rapidly becoming the standard in Bayesian analysis. 
+
+
+### TITLE
+
+Functions of _misfit_ used in traditional statistical analysis and machine learning are almost always proportional to some log-likelihood; for example, the sum of squared errors (i.e. the numerator in $R^2$) is proportional to the logarithm of a Gaussian log-likehood; the log probability of success is proportional to likelihood of a Bernouilli model; and so on.
+
+HERE:
+
+https://youtu.be/GJT5D68abVY
+
+
+**Brief overview of information criteria**
+
+Information criteria serve the purpose of _scoring devices_  used to estimate predictive accuracy. (Note: Measures of predictive accuracy for probabilistic prediction are called "scoring rules"). Particularly, we are interested in how the model predictions deviate from future data (or _out-of-sample deviance_). 
+
+
+INFORMATION CRITERIA
+
+Sometimes we care about this accuracy for its own sake, as when evaluating a forecast. In other settings, predictive accuracy is valued for comparing different models rather than for its own sake
+
+**The ideal measure**
+
+The _ideal_ measure of model fit would be the _expected out-of-sample log predictive density_ or __elpd__:
+
+$$
+\text{elpd} = E(\log p\big(\tilde y_i)\big) = \int \log p(\tilde y_i) \underbrace{f(\tilde y_i)}_\text{true dgp} d \tilde y
+$$
+
+Obviously, we do not know the "true" data generating process $f$ and must therefore settle for an approximation. But lets not worry about that for the moment. 
+
+To keep comparability with the given dataset, we  define a measure of predictive accuracy for the $n$ data points taken one at a time: the _expected out-of-sample log pointwise predictive density_.
+
+$$
+\text{elppd} = \sum_{i=1}^n E\big(\log p(\tilde y_i)\big)
+$$
+
+The advantage of this measure will become clear once we draw a connection between __elppd__ and cross-validation. 
+
+
+$$
+p(\tilde y \mid y ) = p(\tilde y \mid \boldsymbol \theta, y)
+$$
+
+_Log predictive density_ (or _log-likelihood_):
+
+The log predictive density has an important role in model comparison because, in the limit of large sample sizes, the model with the highest expected log predictive density will provide more accurate predictions.
+
+$$
+ \overbrace{\log p(\tilde y_i)}^\text{log post. pred. dist.} = \log \int p(\tilde y_i \mid \boldsymbol \theta)\ p(\boldsymbol \theta) d \boldsymbol \theta
+$$
+
+Why are we only using the likelihood (or data model) and not the prior in this calculation? Because we are interested here in summarizing the fit of model _to data_. The prior is relevant in estimating the parameters but not in assessing a model's accuracy.
+
+
+
+HERE
+
+**Brief overview of leave-one-out cross-validation**
+
+Bayesians worry more about paying the cost of spliting the original dataset into training and testing sets.
+
+
+
+
+
+Suppose you omitted the ith observation, obtained draws from the posterior distribution whose PDF is f(θ∣∣y−i), and evaluated the log-likelihood for the ith observation ℓ(θ;yi) over the posterior draws of θ
+You could do that N times, leaving out the ith observation each time, and sum the log-likelihoods
+One problem is that doing so would take a lot of time and be computationally unreliable because something would go wrong with at least one of the Markov Chains
+But it is possible to estimate what would happen if you were to do all that, using only the posterior draws obtained from conditioning once on the entire dataset with one verifiable assumption that no yi has an outsized influence on the posterior PDF
+
+
+
+
+file:///Users/andrescastroaraujo/Desktop/Dropbox/Columbia/1.%20Fall/Data%20Mining%20for%20the%20Social%20Sciences/r/Resampling_M_and_Trees.html
+
+
+https://m-clark.github.io/introduction-to-machine-learning/concepts.html#cross-validation
+
+
+https://projecteuclid.org/download/pdfview_1/euclid.ssu/1268143839
+
+### LOO
+
+```{r, message=FALSE}
+b_mod2 <- stan_glm(inc.party.vote ~ growth + I(growth^2), data = hibbs)
+
+library(loo)
+loo(b_mod)
+loo(b_mod2, k_threshold = 0.7)
+compare(loo(b_mod), loo(b_mod2, k_threshold = 0.7))
+```
+
+
+

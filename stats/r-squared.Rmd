@@ -1,0 +1,227 @@
+---
+title: "$R^2$"
+output: 
+  html_document:
+    code_folding: show
+    theme: paper
+    toc: yes
+    toc_float: 
+      collapsed: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "", fig.align = "center")
+
+library(tidyverse)
+
+## Plot settings
+theme_set(
+  theme_minimal(base_family = "Verdana", base_line_size = 0)
+  )
+```
+
+```{css, echo=FALSE}
+blockquote {
+    padding: 10px 20px;
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: #828282;
+    border-left: 10px solid #EEE;
+}
+
+body {
+    font-size: 14px;
+}
+```
+
+## Introduction
+
+Here's an OLS model:
+
+```{r}
+OLS <- lm(mpg ~ wt, data = mtcars)
+arm::display(OLS)
+```
+
+One of the most common measures of model fit in linear regression is the $R^2$ statistic. This is also known as the _coefficient of determination_.
+
+For example, a model with $R^2 = 0.75$ "explains" 75% of the _in-sample variance_ of $y$. The remaining 25% is the amount of variation not predicted by the model.
+
+The following table provides a brief summary of the concepts embedded in the $R^2$ statistic:
+
+| Concept                      | Notation
+|:-----------------------------|:-------------------------------------|
+| Predicted outcomes (or *fitted* values) | $\hat y_i = \hat \alpha + \hat \beta x_i$
+| Prediction error (or *residual*)        | $\hat \epsilon_i = y_i - \hat y_i$
+| Total sum of squares (TSS)              | $\text{TSS} = \sum_{i = 1}^n (y_i - \bar y)^2$
+| Sum of squared residuals (SSR)          | $\text{SSR} = \sum_{i=1}^n \hat\epsilon_i^2$
+| Coefficient of determination ($R^2$)    | $R^2 = \frac{\text{TSS} - \text{SSR}}{\text{TSS}} = 1 - \frac{\text{SSR}}{\text{TSS}}$
+
+Alternatively, we can think of $R^2$ as a quantity that shows how much of the variation in $y$ is reduced by the model.
+
+$$
+\text{TSS}(1- R^2) = \text{SSR}
+$$
+
+Going back to the OLS example:
+
+```{r}
+SSR <- var(residuals(OLS))
+TSS <- var(predict(OLS)) + SSR
+1 - (SSR/TSS) ## R2
+```
+
+Alternatively, we can define $R^2$ as a simple ratio:
+
+$$
+R^2 =\frac{\text{var}(\hat y)}{\text{var}(y)} = \frac{\sum_{i=1}^n (\hat y - \bar y)^2}{\text{TSS}}
+$$
+
+```{r}
+var(predict(OLS)) / var(mtcars$mpg)
+```
+
+Note the following things about $R^2$:
+
+1. $R^2$ is bounded between zero and one.
+
+2. It does not change if you multiply $x$ or $y$ by a constant. So, if you want to change the units of the predictors or response to aid interpretation, you won't change the summary of the fit of the model to the data.
+
+3. In a regression with one predictor, one can show that $R^2$ equals the square of the linear correlation $\rho$ between $x$ and $y$.
+
+4. Interpreting $R^2$ can get tricky because the numerator and denominator can be changed in different ways. For example, if you apply a model to a subset of the original data, then the TSS might be reduced, which causes $R^2$ to decrease as well. This can happen even if the model fits both data sets just as well.
+
+
+## The problem with $R^2$
+
+We are usually not interested in whether or not a model can predict the data upon which it was trained. Rather, we usually care about _future data_ (or "testing" data). And here we face a trade-off between model complexity and predictive accuracy; or between _underfitting_ (models that learn too little from the data sample) and _overfitting_ (models that learn too much from the data sample). 
+
+Usually, adding more parameters to a model will produce overfitting. We can even reach incredible $R^2$ quantities if the number of parameters approximates the number of observations. This is true even when the variables you add to a model are just random numbers, with no relation to the outcome. So it’s no good to choose among models using only fit to the data.
+
+_Note. There are exceptions to this "too many parameters" heuristic, such as multilevel models and other forms of regularization like "penalized likelihood estimation"._
+
+_Example of an improved $R^2$ through a nonsensical approach:_
+
+```{r, echo=FALSE, fig.width=7, fig.height=4, warning=FALSE, message=FALSE}
+poly_plot <- function(N) {
+  OLS <- lm(mpg ~ poly(wt, N), data = mtcars)
+  ggplot(mtcars, aes(y = mpg, x = wt)) +
+  geom_point() + 
+  geom_smooth(method = lm,
+              formula = y ~ poly(x, N), col = "red"
+              ) +
+  labs(title = paste("R-Squared =", round(summary(OLS)$r.squared, 2)),
+       subtitle = paste("Polynomial OLS, degree", N)) +
+    coord_cartesian(xlim = c(0, 5.5), ylim = c(0, 40))
+}
+
+gridExtra::grid.arrange(
+  poly_plot(2), poly_plot(5), 
+  poly_plot(12), poly_plot(17)
+  )
+```
+
+_Other problems with $R^2$_
+
+Looking back at the ratio exposition of $R^2$ reveals at least two more problems:
+
+$$
+R^2 = \frac{\text{var}[\beta_0 + \beta_1 X]}{\text{var}[\beta_0 + \beta_1 X + \epsilon]} = \frac{\text{var}[X]}{\text{var}[X] + \sigma^2}
+$$
+
+1. _$R^2$ does_ not _measure goodness of fit_. By making the variance of the linear predictor arbitrarily small (or $\sigma^2$ arbitrarily large), we get $R^2 \leadsto 0$. And that will happen even if we are looking at the "true" model.
+
+2. _$R^2$ says nothing about predictive accuracy_. This is because, depending on the range of $X$, the $R^2$ can be anywhere between 0 and 1. The following simulations show that the mean squared error is a much more reliable measure of predictive accuracy.
+
+```{r}
+mse <- function(OLS) {
+  output <- mean((OLS$fitted.values - OLS$model$y)^2)
+  return(output)
+}
+
+## Small range for X
+set.seed(123)
+x <- seq(1, 2, length.out = 1e3)
+y <- rnorm(n = 1e3, mean = 1 + x*2, sd = 1)
+
+small_range_OLS <- lm(y ~ x)
+summary(small_range_OLS)$r.squared
+mse(small_range_OLS)
+
+## Big range for X
+set.seed(123)
+x <- seq(1, 10, length.out = 1e3)
+y <- rnorm(n = 1e3, mean = 1 + x*2, sd = 1)
+
+big_range_OLS <- lm(y ~ x)
+summary(big_range_OLS)$r.squared
+mse(big_range_OLS)
+```
+
+Finally, $R^2$ is commonly described as "the fraction of variance explained". But this statistical usage of the word "explain" has no connection whatsoever to anything that could sensibly be called an explanation. And none of the above problems are fixed by using the so-called "adjusted-$R^2$", which penalizes the $R^2$ in proportion to the number of parameters included in the model. 
+
+****
+
+__If $R^2$ is so useless, then why are we waisting so much time talking about it?__
+
+There are two main reasons to discuss $R^2$:
+
+- _Historical reasons_. The $R^2$ is taught extensively in the traditional statistics curriculum, so you need to know what it is in order to be a practitioner.
+
+- _Transitioning to better tools_. We would like to use the $R^2$ (or "adjusted $R^2$") to perform important tasks, such as model comparisons. The log-likelihood measures (or _information criteria_) discussed later on provide better tools, and you never really know how useful they are until you understand the poverty of $R^2$
+    
+## Going Bayesian
+
+Another reason to care about $R^2$ might come from priors in Bayesian statistics. The `stan_lm`, `stan_aov`, and `stan_polr` allow users to set a prior on $R^2$ in order to convey information about _all_ the parameters. From the __`rstanarm`__ documentation:
+
+> "This prior hinges on prior beliefs about the location of $R^2$, _the proportion of variance in the outcome attributable to the predictors_, which has a Beta prior with first shape hyperparameter equal to half the number of predictors and second shape hyperparameter free. By specifying what to be the prior mode (the default), mean, median, or expected log of $R^2$, the second shape parameter for this Beta distribution is determined internally."
+    
+In other words, it provides more regularization!
+
+****
+
+$R^2$ is based on the point estimate of the fitted model. But in Bayesian inference we don't really do point estimates, instead we deal with posterior distributions. We can get at this through the `bayes_R2()` function in rstanarm.
+
+```{r, results="hide", message=FALSE}
+library(rstanarm)
+options(mc.cores = parallel::detectCores())
+
+MCMC <- stan_glm(mpg ~ wt, data = mtcars)
+```
+
+```{r}
+MCMC %>% print(digits = 2)
+```
+
+```{r, fig.width=8, fig.height=2, message=FALSE}
+tibble(r_squared = bayes_R2(MCMC)) %>% 
+  ggplot(aes(r_squared)) +
+  geom_histogram(color = "black", fill = "steelblue1")
+```
+
+Basically, we get a _vector_ of predicted values and residuals for each simulation draw.
+
+```{r}
+yhat_mat <- posterior_linpred(MCMC)
+
+resid_mat <- array(NA, dim = dim(yhat_mat))
+for (i in 1:4000) {
+  resid_mat[i, ] <- mtcars$mpg - yhat_mat[i, ]
+}
+
+var_ypred <- apply(yhat_mat, MARGIN = 1, var)
+var_resid <- apply(resid_mat, MARGIN = 1, var)
+
+BR2 <- var_ypred / (var_ypred + var_resid)
+
+cat("Bayesian r-squared (median):", median(BR2), "\n") ## has uncertainty
+cat("OLS r-squared:", summary(OLS)$r.squared)          ## doesn't have uncertainty
+```
+    
+__From Gelman et al (2017):__
+
+A new issue arises when fitting a set of a models to a single dataset. Now that the denominator of $R^2$ is no longer fixed, we can no longer interpret an increase in $R^2$ as a improved fit to a fixed target.
+
+The new denominator can be interpreted as an estimate of the _expected variance of predicted future data_ from the model _under the assumption that the predictors $\mathbf X$ are held fixed_. In other words we can consider our Bayesian $R^2$ as a data-based estimate of the proportion of variance explained for new data. 
+    
+Note that the predictive accuracy for new data will be lower (in expectation) than the predictive accuracy for the data used to fit the model. That is, the $R^2$ statistic doesn't provide any correction for _overfitting_ and, as such, in the same way that is done for log-score measures via cross-validation.
