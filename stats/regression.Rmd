@@ -1,0 +1,472 @@
+---
+title: "<strong>Regression Story</strong>"
+output: 
+  html_document:
+    code_folding: show
+    theme: paper
+    toc: yes
+    toc_float: 
+      collapsed: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "", fig.align = "center", 
+                      comment = "")
+```
+
+```{css, echo=FALSE}
+blockquote {
+    padding: 10px 20px;
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: #828282;
+    border-left: 10px solid #EEE;
+}
+
+body {
+    font-size: 14px;
+}
+```
+
+## Introduction
+
+Do you have an _outcome_ (or _response_) variable that you wish to model (or _predict_) as a function of one or more _inputs_ (or _covariates_)? If so, you need some regression.
+
+__Notation:__
+
+- $y =$ our __outcome__ variable.
+
+- $\mathbf x =$ our __input__ variables. Bold face indicates a _vector_.
+
+- $\boldsymbol \beta =$ our parameters.
+
+- $\mathbf x^\top \boldsymbol \beta = \beta_0 + \beta_1 x_1 + \dots + \beta_p x_p$ is the __linear predictor__ (also called $\boldsymbol \eta$).
+
+- Hats on top of variables indicate we are talking about an estimated value (e.g. $\hat y$, $\hat \beta_1$, etc.)
+
+__Regression:__
+
+$$
+E[y \mid \mathbf x] = f(\mathbf x)
+$$
+
+__Linear regression:__
+
+$$
+E[y \mid \mathbf x] = \mathbf x^\top \boldsymbol \beta
+$$
+
+__Logistic regression (for binary outcomes):__
+
+$$
+E[y \mid \mathbf x] = \Pr(y = 1 \mid \mathbf x) = \text{logit}^{-1} (\mathbf x^\top \boldsymbol \beta)
+$$
+
+- The _inverse logit_ function serves the purpose of a __link function__. 
+
+- The link function in linear regression is implicit because it's just the "identity function":
+
+    $E[y \mid \mathbf x] = \mathbf x^\top \boldsymbol \beta$
+    
+    This "identity" link function makes it _very easy_ to interpret, when compared with other link functions. 
+    
+    Note. We use different link functions when we have different types of outcome variables (e.g. binary, count, real numbers).
+    
+- In logistic regression we have:
+    
+    $\text{logit}(E[y \mid \mathbf x]) = \mathbf x^\top \boldsymbol \beta$
+    
+    and
+    
+    $E[y \mid \mathbf x] = \text{logit}^{-1}(\mathbf x^\top \boldsymbol \beta)$
+    
+    which amounts to this:
+    
+$\Pr(y = 1 \mid \mathbf x) = \frac{\exp({\mathbf x^\top \boldsymbol \beta})}{1 + \exp({\mathbf x^\top \boldsymbol \beta})}$
+    
+- In R, we can define the inverse logit as:
+
+    ```{r}
+    invlogit <- function(eta) { exp(eta) / (1 + exp(eta)) }
+    
+    invlogit(0)
+    ```
+
+    or simply use the `plogis()` function:
+    
+    ```{r}
+    plogis(0)
+    ```
+
+__Space-time dependence__
+
+- We solve for space-time dependence by introducing new variables into our set of input variables. We need to do this in order to accomodate one of the biggest mathematical assumptions in regression: that observations are __independent__ of each other.
+
+- The other big mathematical assumption is __additivity__ and __linearity__. We talk about this assumption in the next section.
+
+## Linear Models
+
+Linear Regression is simply:
+
+$$
+E[y \mid \mathbf x] = \beta_0 + \beta_1 x_1 + \dots + \beta_p x_p
+$$
+
+The error terms are defined as:
+
+$$
+\epsilon_i = \hat y_i - y_i = \mathbf x^\top_i \boldsymbol \beta  - y_i
+$$
+
+For linear regression, we can depict $y$ simply as having a deterministic component and an error term.
+
+$$
+y = \mathbf x^\top \boldsymbol \beta + \epsilon
+$$
+
+The error term is usually modelled as having a normal (or _gaussian_ distribution):
+
+$$
+\epsilon \sim \text{normal}(0, \sigma^2)
+$$
+
+This leads to a very fancy notation for the distribution of $y$ given $\mathbf x$, which is common in Bayesian statistics:
+
+$$
+y \mid \mathbf x \sim \text{normal}(\mathbf x^\top \boldsymbol \beta, \sigma^2)
+$$
+
+At first view, this seems like an unnecessarily complicated way of depicting linear regression. Most people learn about this technique as simply fitting an intercept and a slope to a cloud of points. However, this notation allows to generalize regression to more complicated types of data. Furthermore, it's also the theoretical framework embedded in R's `glm()` function.
+
+### Escaping linearity: Case study
+
+___Transformations and interactions___
+
+The most important _mathematical_ assumption in linear regression is __additivity__ and __linearity__. If our data doesn't seem to follow this assumption, it makes sense to transform the data such that it does.
+
+The following example (from Matt Taddy) shows sales data for orange juice from Dominick's grocery stores in the 1990s. It includes weekly prices and sales for three different brands, and also an indicator `feat` that shows whether each brand was advertised that week.
+
+```{r, message=FALSE}
+library(tidyverse)
+URL <- "https://raw.githubusercontent.com/TaddyLab/BDS/master/examples/oj.csv"
+oj <- read_csv(URL)
+oj
+```
+
+
+```{r}
+g <- ggplot(oj, aes(price, sales)) + 
+  geom_point(alpha = 0.2, aes(color = brand)) 
+
+g 
+```
+
+The data is skewed, suggesting that the relationship between $y$ and $x$ is multiplicative, rather than additive. To fix this, we transform both variables using logarithms.
+
+```{r}
+g + scale_y_log10() + scale_x_log10()
+```
+
+Here, the negative relationship is cleaner. Furthermore, log-log models have an intiutive interpretatio: sales increase by $\beta$% for every 1% increase in price.
+
+```{r}
+glm(log(sales) ~ log(price), data = oj, family = gaussian("identity")) %>% 
+  summary() %>% 
+  print(digits = 1)
+```
+
+In economics, $\beta$ has a special name: _elasticity_. It's the % change in $y$ over the % change in $x$.
+
+If we think the three brands might share the same elasticity, but have different intercepts, we do the following:
+
+```{r}
+glm(log(sales) ~ log(price) + brand, data = oj) %>% 
+  summary() %>% 
+  print(digits = 1)
+```
+
+- The `(Intercept)` captures the value for Dominick's log sales at a log price of zero.
+
+- Minute Maid's intercept is capture by the sum of `(Intercept)` and `brandminute.maid`.
+
+- Tropicana's intercept is captured by the sum of `(Intercept)` and `brandtropicana`.
+
+- All of them share the same elasticity of `-3.14`.
+
+If we want to add different slopes for each model, then we need __interactions__, which we can add using `:` or `*` in R's formula syntax:
+
+```{r}
+glm(log(sales) ~ log(price)*brand, data = oj) %>% 
+  print(digits = 1)
+```
+
+Finally, we can also add a the `feat` variable.
+
+```{r}
+fit <- glm(log(sales) ~ log(price)*brand*feat, data = oj)
+fit
+```
+
+Dominick's elasticity:
+
+```{r}
+cat("Not Featured: ", -2.7742, "\n", "Featured: ", -2.7742 - 0.4706, sep = "")
+```
+
+Minute Maid's elasticity:
+
+```{r}
+cat("Not Featured: ", -2.7742 + 0.7829, "\n", "Featured: ", -2.7742 + 0.7829 - 0.4706 - 1.1092, sep = "")
+```
+
+Tropicana's elasticity:
+
+```{r}
+cat("Not Featured:", -2.7742 + 0.7358, "\n", "Featured:", -2.7742 + 0.7358 - 0.4706 -0.9861, 
+    sep = "")
+```
+
+So, being featured leads to a greater price sensitivity. This is probably due to the fact that advertisement increases the population of consumers who are considering buying that brand, including people who will be more price sensitive than "brand loyalists".
+
+This type of parameter interpretation is as hard as it gets in the context of linear regression; however, it can get a bit trickier with different types of link functions.
+
+## Logistic Regression
+
+When the response variable is an _indicator function_ (i.e. if (...) y = 1 else y = 0), we can take advantage of a cool mathematical fact:
+
+$$
+E[Y] = \Pr(Y = 1)
+$$
+
+```{r}
+y <- rbinom(1e3, 1, prob = 0.23)
+str(y)
+mean(y)
+```
+
+This is why regression still works. The expectation we are modelling is a probability. 
+
+We also choose a different _link function_ $f(\mathbf x^\top \boldsymbol \beta)$ such that the $y$ values are guaranteed to lie between 0 and 1. This link function also guarantees that __linearity__ and __additivity__ still holds.
+
+This is how the we map linear combinations of parameters to values between 0 and 1.
+
+```{r}
+tibble(x = c(-10, 10)) %>% 
+  ggplot(aes(x)) + 
+  stat_function(fun = invlogit) + 
+  labs(x = "linear predictor", y = "Pr(Y = 1 | X)")
+```
+
+Note. Link functions that map values to $[0, 1]$ are known as _sigmoid_ functions in the machine learning literature.
+
+Another way of talking about logistic regression is to depict it as _a linear model for log odds_.
+
+$$
+\text{logit}(p) = \log \bigg(\frac{p}{1-p}\bigg) = \beta_0 + \beta_1 x_1 + \dots + \beta_p x_p
+$$
+
+>___Exercise___. Look at the graph and figure out why we say that effects are multiplicative. Why can we claim that there's an interaction between every input in $\mathbf x$? 
+>
+>Hint. You can gain further mathematical intuition by exponentiating the previous equation.
+
+In the following case study we figure out how to fit a logistic regression from scratch. But first, we fit a "[spam](https://en.wikipedia.org/wiki/Email_spam) vs [ham](https://en.wiktionary.org/wiki/ham_e-mail)" example using `glm()`.
+
+Note. The "`y ~ .`" is shorthand for "include every predictor in the model".
+
+```{r}
+URL <- "https://raw.githubusercontent.com/TaddyLab/BDS/master/examples/spam.csv"
+email <- read_csv(URL)
+
+logistic_model <- glm(spam ~ ., data = email, family = binomial("logit"))
+```
+
+R warns that `fitted probabilities numerically 0 or 1 occurred`. This means that the regression was able to fit some data points _exactly_—e.g. an email is modeled as having 100% probability of being spam. This situation, known as _perfect separation_, is a sympton of _overfitting_!
+
+Compare the following coefficients:
+
+```{r}
+logistic_model$coefficients["word_free"]
+exp(logistic_model$coefficients["word_free"])
+```
+
+If the email contains the word "free", the _odds_ that this email is spam increases by (almost) 5. 
+
+On the other hand, having the word "george" in the email will dramatically reduce this odds. 
+
+```{r}
+exp(logistic_model$coefficients["word_george"])
+```
+
+>This is an old dataset collected from the inbox of a guy named George.
+
+### Model Fit: Case study
+
+Both linear and logistic regression can be fit using _maximum likelihood estimation_.
+
+Two additionl jargon terms:
+
+1. __Likelihood__: The probability of your data, given the parameters. You want to make it as big as possible.
+
+2. __Deviance__: The distance between data and fit. You want to make this as small as possible.
+
+The likelihood function for logistic regression 
+
+
+Another big _mathematical_ assumption is that observations are independent of each other. 
+
+$$
+\prod_{i=1}^n \Pr(y_i \mid \mathbf x_i) = \prod_{i=1}^n p_i^{y_i} (1 - p_i)^{1 - y_i}
+$$
+
+
+
+$$
+\sum_{i=1}^n \log \bigg(\Pr(y_i \mid \mathbf x_i)\bigg) = \sum_{i=1}^n \log \bigg(p_i^{y_i} (1 - p_i)^{1 - y_i}\bigg)
+$$
+
+
+```{r}
+X <- model.matrix(logistic_model)
+y <- logistic_model$y
+
+log_likelihood <- function(beta) {
+  eta <- X %*% beta
+  p <- 1 / (1 + exp(-eta))
+  return(sum(dbinom(y == 1, size = 1, prob = p, log = TRUE)))
+}
+
+opt <- optim(rep(0, ncol(X)), fn = log_likelihood, method = "BFGS",
+             # this next line is critical: 
+             # it tells R to maximize rather than minimize
+             control = list(fnscale = -1)
+             )
+
+cbind(glm = coef(logistic_model), optim = opt$par) %>% 
+  head(10) %>% 
+  print(digits = 3)
+```
+
+
+
+
+## Space & Time
+
+In many settings, observations are definitely _not_ independent from each other. This problem arises from time to time, but it's most pervasive in __time series__ and __spatial statistics__. Fortunately, it's relatively straightforward to adjust for space-time dependence in regression: you simply include the variables behind dependence among your set of input variables. For example, adjusting for trends in time (e.g. month) and space (e.g. regional location), or adjusting for the dependence between neighboring outcomes (i.e. auto-correlation).
+
+The following example shows a series of monthly total international airline passengers for 1949-1960. The graph shows two things: an upward trend and an increasing oscillation.
+
+```{r, message=FALSE}
+URL <- "https://raw.githubusercontent.com/TaddyLab/BDS/master/examples/airline.csv"
+airline <- read_csv(URL)
+
+g <- airline %>% 
+  mutate(row_number = row_number()) %>% 
+  ggplot(aes(x = row_number, y = Passengers)) +
+  geom_line()
+
+g
+```
+
+>If we sant to do _linear_ regression and it appears that noise is increasing over time, we likely need a transformation. Passenger numbers are like sales volume—they are always positive and are often discussed in percentage terms. This suggests that we should be working on the log scale.
+
+```{r}
+g + scale_y_log10()
+```
+
+If we include time as a continuous variable $x$ (i.e. $x = 1, \dots, n $) and a different intercept for each month, we have the following model:
+
+$$
+\log(y_t) = \alpha_{j[t]} + \beta \ x_t + \epsilon_t
+$$
+
+In R:
+
+```{r}
+airline <- airline %>% 
+  mutate(Time = row_number(), Month = factor(Month))
+
+model_time <- glm(log(Passengers) ~ Time + Month, data = airline)
+model_time
+
+airline$pred <- predict(model_time) %>% exp()
+```
+
+```{r}
+airline %>% 
+  ggplot(aes(x = Time, y = Passengers)) +
+  geom_line(aes(color = "observed")) +
+  geom_line(aes(y = pred, color = "fit")) +
+  labs(color = NULL) + 
+  theme(legend.position = "top")
+```
+
+>Now de-trending is easy. If your data include dates, then you should create indicator variables for, say, each year, month, and day. The most important thing to remember is to _proceed hierarchically_: if you are going to include an effect for `may-1981`, then you should also include broader effects for `may` and for `1981`. This allows the model to use the latter effects as baselines, and the `may-1981` effect will only summarize deviations from this base. [In other words], `may-1981` will be "shrunk" toward baseline levels for `may` and `1981`. The same logic applies for space: if you condition on counties, then you should also include broader state and region effects.
+
+### Autocorrelation
+
+Time series data are usually auto-correlated. That is, a good predictor for $y_t$ might as well be $y_{t-1}$. You can see this by plotting the residuals.
+
+```{r}
+airline$residuals <- residuals(model_time)
+
+airline %>% 
+  ggplot(aes(x = Time, y = residuals)) +
+  geom_line() 
+```
+
+The fact that error are auto-correlated violates, once again, our independence assumption. 
+
+You can summarize this type of dependence with R's `acf()`, which is just a shorthand for $\text{corr}(\epsilon_t, \epsilon_{t-1})$. 
+
+```{r}
+acf(airline$residuals, plot = FALSE) %>% 
+  forecast::autoplot()
+```
+
+In this case, $ACF(1)$ is close to 0.8, which is huge.
+
+Here we introduce the _autoregressive_ (AR) model:
+
+$$
+AR(1): \ y_t = \beta_0 + \beta_1 \ y_{t-1} + \epsilon_t
+$$
+
+```{r}
+airline <- airline %>% 
+  mutate(Lag = lag(Passengers)) %>% 
+  na.omit()   ## this will remove one observation from our dataset
+
+model_ar <- glm(log(Passengers) ~ log(Lag) + Month + Time, data = airline)
+
+airline$pred <- predict(model_ar) %>% exp()
+airline$residuals <- residuals(model_ar)
+
+airline %>% 
+  ggplot(aes(x = Time)) +
+  geom_line(aes(y = Passengers, color = "observed")) + 
+  geom_line(aes(y = pred, color = "fit")) +
+  labs(color = NULL) + 
+  theme(legend.position = "top")
+
+airline %>% 
+  ggplot(aes(x = Time, y = residuals)) +
+  geom_line() 
+
+acf(airline$residuals, plot = FALSE) %>% 
+  forecast::autoplot()
+```
+
+One last note about the lagged value's coefficient. 
+
+- If $|\beta_l| = 1$, you have a random walk
+
+- If $|\beta_l| > 1$, the series explodes
+
+- If $|\beta_l| < 1$, the values are mean reverting
+
+    >The series are called _stationary_ because $y_t$ is always pulled back toward the mean. These are the most common, and most useful, type of AR series. The past matters in a stationary series, but with limited horizon and the autocorrelation drops off rapidly. 
+
+```{r}
+model_ar
+```
+

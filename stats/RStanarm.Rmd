@@ -62,6 +62,8 @@ theme_set(
 
 ****
 
+In this example we look at a generalized linear model for binary data, aka _logistic regression_. See this [vignette](https://mc-stan.org/rstanarm/articles/binomial.html) for more information.
+
 ## Frequentist
 
 This is how the output of a logistic regression will look like: 
@@ -75,7 +77,7 @@ logistic_mod <- glm(switch ~ dist, data = wells, family = binomial("logit"))
 arm::display(logistic_mod)
 ```
 
-The 95% confidence intervals for `dist` are as follows:
+The 95% confidence intervals for `dist` is as follows:
 
 ```{r}
 cat("Lower:", -0.62 + qnorm(0.025) * 0.10, "\n")
@@ -111,12 +113,12 @@ df %>%
 The confidence intervals for the prediction at 0 and 300 meters are as follows:
 
 ```{r}
-cat("0 meters:", "\n\t")
-cat("Lower:", plogis(0.61 + qnorm(0.025) * 0.06 + (-0.8159964 * 0)), "\n\t")
-cat("Upper:", plogis(0.61 + qnorm(0.975) * 0.06 + (-0.4240036 * 0)), "\n")
-cat("300 meters:", "\n\t")
-cat("Lower:", plogis(0.61 + qnorm(0.025) * 0.06 + (-0.8159964 * 3)), "\n\t")
-cat("Upper:", plogis(0.61 + qnorm(0.975) * 0.06 + (-0.4240036 * 3)), "\n")
+cat("0 meters:", "\n")
+cat("  Lower:", plogis(0.61 + qnorm(0.025) * 0.06 + (-0.8159964 * 0)), "\n")
+cat("  Upper:", plogis(0.61 + qnorm(0.975) * 0.06 + (-0.4240036 * 0)), "\n")
+cat("300 meters:", "\n")
+cat("  Lower:", plogis(0.61 + qnorm(0.025) * 0.06 + (-0.8159964 * 3)), "\n")
+cat("  Upper:", plogis(0.61 + qnorm(0.975) * 0.06 + (-0.4240036 * 3)), "\n")
 ```
 
 ## Bayesian
@@ -176,15 +178,15 @@ __`predict()`__
 
 The are two types of predictions we can obtain from `rstanarm`:
 
-- `posterior_linpred()` yields simulations of the possible values of $\boldsymbol \eta = \alpha + \beta \mathbf x$, with variation coming exclusively from the posterior uncertainty of the coefficients.
+1. `posterior_linpred()` yields simulations of the possible values of $\boldsymbol \eta = \alpha + \beta \mathbf x$, with variation coming exclusively from the posterior uncertainty of the coefficients.
 
-- `posterior_predict()` yields simulations of the possible values of $\mathbf y^\text{rep} = \alpha + \beta \mathbf x + \epsilon$. This is also known as the _posterior predictive distribution_ of the data.
+2. `posterior_predict()` yields simulations of the possible values of $\mathbf y^\text{rep} = \alpha + \beta \mathbf x + \epsilon$. This is also known as the _posterior predictive distribution_ of the data.
 
 The `posterior_predict()` function is simply a short hand for the following procedure:
 
 ```{r}
-n_sims <- nrow(draws)
-n_obs <- nrow(wells)
+n_sims <- nrow(draws)  # 4,000 draws from the posterior distribution
+n_obs <- nrow(wells)   # 3,020 observations
 
 yrep <- array(NA, dim = c(n_sims, n_obs))
 
@@ -193,7 +195,7 @@ for (i in 1:n_obs) {
   yrep[ , i] <- rbinom(n = n_sims, size = 1, prob = eta)
 }
 
-dim(yrep) ## rows = draws, columns = observations
+dim(yrep)
 ```
 
 We can calculate the Posterior Predictive Distribution for the mean of the data (or `mean_PPD`) by making some calculations on this matrix.
@@ -203,7 +205,7 @@ p <- c(0.1, 0.25, 0.5, 0.75, 0.9)
 df <- tibble(mean_PPD = rowMeans(yrep))
   
 summarize(df, mean = mean(mean_PPD), sd = sd(mean_PPD)) %>% 
-  round(2)
+  round(2) 
 
 quantile(df$mean_PPD, p) %>% 
   round(2)
@@ -227,52 +229,22 @@ ggplot(wells) +
   map(1:n_lines, bayes_lines, index = sample(4000, n_lines))
 ```
 
-
-### Forecasts
-
-CHANGE THIS EXAMPLE SO THAT IT MAKES SENSE.
-
-Suppose we are interested in predicting the election outcomes when growth is 2%. We simply do as follows:
+Finally, you can access the default priors that were used in the model with the `prior_summary()` function.
 
 ```{r}
-new_df <- tibble(dist = 2)
-ypred <- posterior_linpred(logistic_bayes, newdata = new_df)
-
-hist(plogis(ypred))
+prior_summary(logistic_bayes)
 ```
 
-Then again, it's hard to believe a 2% growth estimate without any uncertainty attached to it.
+These are weakly informative priors. See more information [here](http://mc-stan.org/rstanarm/reference/prior_summary.stanreg.html) and [here](http://mc-stan.org/rstanarm/reference/priors.html).
 
-Suppose that our best estimate of economic growth was 2%, but with some uncertainty that will be expressed as a normal distribution with standard deviation 0.3%. We can then _propagate the uncertainty_ in this predictor to obtain a forecast distribution that more completely expresses our uncertainty:
-
-```{r}
-draws <- draws %>% 
-  mutate(x = rnorm(n_sims, mean = 2, sd = 0.3)) %>% 
-  mutate(ypred = rnorm(n_sims, a + b*x, sigma))
-
-with(draws,
-cat("Predicted percentage of 2-party vote: ", 
-    round(median(ypred), 2), ", with s.e. ", 
-    round(sd(ypred), 2), "\n\nPr(Incumbent Win) = ", 
-    round(mean(ypred > 50), 2), sep = ""))
-```
-
-Note that the standard error is slightly higher and thus, the probability of a win is slightly lower.
-
-****
-
-
-```{r}
-prior_summary(b_mod)
-```
-
-See more information [here](http://mc-stan.org/rstanarm/reference/prior_summary.stanreg.html) and [here](http://mc-stan.org/rstanarm/reference/priors.html).
+We can also see how much we have learned about our parameters by comparing the prior and posterior distributions:
 
 ```{r, results="hide"}
-g <- posterior_vs_prior(b_mod, 
+g <- posterior_vs_prior(logistic_bayes, 
                         group_by_parameter = TRUE,
                         facet_args = list(scales = "free"))
 ```
+
 ```{r, fig.width=8, fig.height=3}
 g
 ```
@@ -288,24 +260,23 @@ stan_glm(...
 
 ****
 
-### Hello World (MAP)
-
-The following example gets rid of this quantity by setting `mean_PPD = FALSE`. It also sets uniform prior for all coefficients, and uses the "optimizing" algorithm instead of "sampling". 
+## MAP approximation
 
 The "optimizing" algorithm produces a MAP estimate or a _normal approximation centered at the posterior mode._ The idea is to take the Bayesian posterior distribution, and instead of sampling from it, which can be slow when the number of regression coefficients is large, we use an optimization algorithm to find its mode, and then use the curvature of the posterior density to construct a normal approximation.
 
 This normal approximation is not perfect, especially for small datasets where there’s necessarily more uncertainty in the inference. But it can be used for speeding computations in "big data" applications.
 
 ```{r, results="hide"}
-map_mod <- stan_glm(inc.party.vote ~ growth, data = hibbs,
-                    prior = NULL,
-                    prior_intercept = NULL,
-                    prior_aux = NULL,
-                    mean_PPD = FALSE, 
-                    algorithm = "optimizing")
+logistic_map <- stan_glm(switch ~ dist, data = wells,
+                         family = binomial("logit"),
+                         prior = NULL,
+                         prior_intercept = NULL,
+                         mean_PPD = FALSE, 
+                         algorithm = "optimizing")
 ```
+
 ```{r}
-map_mod %>% 
+logistic_map %>%
   summary(digits = 2)
 ```
 
@@ -317,28 +288,24 @@ prior_summary(map_mod)
 
 ```{r, message=FALSE, warning=FALSE}
 library(bayesplot)
-bayesplot_theme_set(theme_minimal(base_family = "Avenir"))
+bayesplot_theme_set(theme_minimal(base_family = "Verdana"))
 color_scheme_set("viridis")
 
-n_pars <- nuts_params(b_mod)
 ```
 
-```{r}
-rhat(b_mod)
-```
 
 ```{r}
-b_mod %>% 
+n_pars <- nuts_params(logistic_bayes)
+
+logistic_bayes %>% 
   as.array() %>% 
-  mcmc_trace(facet_args = list(ncol = 1),
-             np = n_pars)
+  mcmc_trace(facet_args = list(ncol = 1), np = n_pars)
 ```
 
 ```{r}
-b_mod %>% 
+logistic_bayes %>% 
   as.array() %>% 
-  mcmc_pairs(off_diag_args = list(size = 1, alpha = 0.2), 
-             np = n_pars)
+  mcmc_pairs(off_diag_args = list(size = 1, alpha = 0.2), np = n_pars)
 ```
 
 ## Posterior Predictive Checks
@@ -361,70 +328,21 @@ $$
 
 ```{r, fig.width=8, fig.height=2, message=FALSE}
 color_scheme_set("blue")
-ppc_stat(y = hibbs$inc.party.vote, 
-         yrep = posterior_predict(b_mod), 
+ppc_stat(y = wells$switch, 
+         yrep = posterior_predict(logistic_bayes), 
          stat = sd)
 
-ppc_stat(y = hibbs$inc.party.vote, 
-         yrep = posterior_predict(b_mod), 
-         stat = max)
+ppc_stat(y = wells$switch, 
+         yrep = posterior_predict(logistic_bayes), 
+         stat = mean)
 
-custom_test <- function(x) max(x) - min(x)
+prop_zero <- function(x) mean(x == 0)
 
-ppc_stat(y = hibbs$inc.party.vote, 
-         yrep = posterior_predict(b_mod), 
-         stat = custom_test)
+ppc_stat(y = wells$switch, 
+         yrep = posterior_predict(logistic_bayes), 
+         stat = prop_zero)
 ```
 
-```{r, fig.width=8, fig.height=2, message=FALSE}
-samp <- sample(4000, 500)
-ppc_dens_overlay(y = hibbs$inc.party.vote, 
-                 yrep = posterior_predict(b_mod)[samp, ])
+## Model Comparison
 
-ppc_intervals(y = hibbs$inc.party.vote, 
-                 yrep = posterior_predict(b_mod)) +
-  scale_x_continuous(labels = hibbs$year, breaks = 1:16)
-```
-
-This last plot can be understood in terms of _calibration_. If, according to your model, $y$ should fall within a posterior predictive interval with probability 0.5, then around half of the observed $y$'s should do so.
-
-```{r}
-pp_interval_coverage <- function(y, yrep, lower, upper) {
-  left <- apply(yrep, MARGIN = 2, quantile, probs = lower)
-  right <- apply(yrep, MARGIN = 2, quantile, probs = upper)
-  message(paste("Coverage of the", scales::percent(upper - lower), 
-                 "posterior predictive interval:"))
-  return(mean(left < y & y < right))
-}
-
-pp_interval_coverage(
-  y = hibbs$inc.party.vote, 
-  yrep = posterior_predict(b_mod),
-  lower = 0.25,
-  upper = 0.75)
-
-pp_interval_coverage(
-  y = hibbs$inc.party.vote, 
-  yrep = posterior_predict(b_mod),
-  lower = 0.05,
-  upper = 0.95)
-```
-
-These numerical assessments of calibration will give you a _rough_ idea of how the model underfits (or overfits). Ideally, though, you'd want to have more than 100 data points for these percentages to make sense.
-
-
-
-
-```{r, fig.width=8, fig.height=2, message=FALSE}
-ggplot(NULL, aes(x = logistic_bayes$stanfit@sim$samples[[1]]$mean_PPD)) +
-  geom_histogram(fill = "steelblue1", color = "black") +
-  geom_vline(xintercept = mean(wells$switch), size = 3, color = "tomato") +
-  labs(x = "mean_PPD")
-```
-
-
-```{r, fig.width=8, fig.height=2, message=FALSE}
-bayesplot::ppc_stat(y = wells$switch, 
-                    yrep = posterior_predict(logistic_bayes), 
-                    stat = mean)
-```
+To do...
