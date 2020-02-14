@@ -138,7 +138,7 @@ $$
 
 At first view, this seems like an unnecessarily complicated way of depicting linear regression. Most people learn about this technique as simply fitting an intercept and a slope to a cloud of points. However, this notation allows to generalize regression to more complicated types of data. Furthermore, it's also the theoretical framework embedded in R's `glm()` function.
 
-### Escaping linearity: Case study
+### Escaping linearity
 
 ___Transformations and interactions___
 
@@ -299,43 +299,61 @@ exp(logistic_model$coefficients["word_george"])
 
 >This is an old dataset collected from the inbox of a guy named George.
 
-### Model Fit: Case study
+### Model Fit
 
 Both linear and logistic regression can be fit using _maximum likelihood estimation_.
 
-Two additionl jargon terms:
+Two additionl concepts (or statistical jargon):
 
-1. __Likelihood__: The probability of your data, given the parameters. You want to make it as big as possible.
+1. __Likelihood__: The probability of your data, given the parameters: $\Pr(y \mid \boldsymbol \beta)$ You want to make it as big as possible.
 
-2. __Deviance__: The distance between data and fit. You want to make this as small as possible.
+    Technically, the likelihood function isn't really a probability. Instead, it's a function of $\boldsymbol \beta$, and the data are fixed. This is why sometimes you'll see different types of notation to express this quantity.
 
-The likelihood function for logistic regression 
+2. __Deviance__: The distance between data and fit. You want to make this as small as possible (similar to how you want to reduce the sum of squared residuals in OLS).
 
-
-Another big _mathematical_ assumption is that observations are independent of each other. 
-
-$$
-\prod_{i=1}^n \Pr(y_i \mid \mathbf x_i) = \prod_{i=1}^n p_i^{y_i} (1 - p_i)^{1 - y_i}
-$$
-
-
+The likelihood function for logistic regression takes its form after the [Bernoulli probability distribution](https://en.wikipedia.org/wiki/Bernoulli_distribution).
 
 $$
-\sum_{i=1}^n \log \bigg(\Pr(y_i \mid \mathbf x_i)\bigg) = \sum_{i=1}^n \log \bigg(p_i^{y_i} (1 - p_i)^{1 - y_i}\bigg)
+\Pr(Y = y) = \begin{cases} p & \text{ if } y = 1 \\
+1-p & \text{ if } y = 0 
+\end{cases}
 $$
 
+The likelihood is simply the previous equation in short form, and accounting for all $n$ observations.
+
+$$
+\text{likelihood} =  \prod_{i=1}^n p_i^{y_i} (1 - p_i)^{1 - y_i}
+$$
+
+The product symbol ($\prod$) comes from another big _mathematical_ assumption in linear regression, that the observations ($y$'s) are independent of each other. The $p$ probabilities are given by the inverse logit function:
+
+$$
+p_i = \frac{\exp(\mathbf x_i^\top \boldsymbol \beta)}{1 + \exp(\mathbf x_i^\top \boldsymbol \beta)}
+$$
+
+Finally, we usually take the log-likelihood because it makes computation easier:
+
+$$
+\sum_{i=1}^n \log \bigg(p_i^{y_i} (1 - p_i)^{1 - y_i}\bigg)
+$$
+
+In R:
 
 ```{r}
-X <- model.matrix(logistic_model)
-y <- logistic_model$y
-
 log_likelihood <- function(beta) {
+  X <- model.matrix(logistic_model)
+  y <- logistic_model$y
+
   eta <- X %*% beta
   p <- 1 / (1 + exp(-eta))
-  return(sum(dbinom(y == 1, size = 1, prob = p, log = TRUE)))
+  return(sum(dbinom(y, size = 1, prob = p, log = TRUE)))
 }
 
-opt <- optim(rep(0, ncol(X)), fn = log_likelihood, method = "BFGS",
+
+
+init <- rep(0, ncol(email))
+
+opt <- optim(init, fn = log_likelihood, method = "BFGS",
              # this next line is critical: 
              # it tells R to maximize rather than minimize
              control = list(fnscale = -1)

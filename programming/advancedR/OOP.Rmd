@@ -721,13 +721,62 @@ tibble::tribble(
 
 ### Inheritance
 
+>S3 classes can share behaviour through a mechanism called __inheritance__.
+
+This mechanism is powered by three things:
+
+- The class can be a _character vector_.
+
+    ```{r}
+    class(ordered("x"))
+    ```
+
+    Here, `ordered` is a __subclass__ of `factor`; `factor` is __superclass__ of `ordered`.
+
+- If a method is not found for the first class, R looks for a method for the second, and so on.
+
+    ```{r}
+    sloop::s3_dispatch(print(ordered("a")))
+    ```
+
+- A method can _delegate_ work by calling `NextMethod()`. 
+
+    ```{r}
+    sloop::s3_dispatch(ordered("a")[[1]])
+    ```
+
+    Note that `s3_dispatch()` reports delegation with "->".
+    
+___`NextMethod()`___
+
+```{r}
+new_secret <- function(x = double()) {
+  stopifnot(is.double(x))
+  structure(x, class = "secret")
+}
+
+print.secret <- function(x, ...) {
+  print(strrep("x", nchar(x)))
+  invisible(x)
+}
+
+x <- new_secret(c(15, 1, 456))
+x
+```
+
+```{r}
+sloop::s3_dispatch(x[1])
+```
 
 
-
-
+Unfortunately, the default `[` method can’t keep a secret (i.e. it doesn't preserve the `secret` class).
 
 
 https://vctrs.r-lib.org/articles/s3-vector.html
 
 
+
+## R6
+
+R6 - very different to S3/S4, it's much more like OOP in python or javascript, or basically any other popular programming language of the last 20 years (apart from Julia). Powers reticulate. Useful in various places in Shiny. Avoided unless you really need it.
 
