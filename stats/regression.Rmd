@@ -30,17 +30,19 @@ body {
 
 ## Introduction
 
-Do you have an _outcome_ (or _response_) variable that you wish to model (or _predict_) as a function of one or more _inputs_ (or _covariates_)? If so, you need some regression.
+Do you have an _outcome_ variable that you wish to model (or _predict_) as a function of one or more _inputs_? If so, you need some regression.
 
 __Notation:__
 
-- $y =$ our __outcome__ variable.
+- $y:$ our __outcome__ variable. Other names include: _response_, _output_, or _target_. If the outcome variable is categorical, we sometimes refer to it as the _label_.
 
-- $\mathbf x =$ our __input__ variables. Bold face indicates a _vector_.
+- $\mathbf x:$ our __input__ variables. Other names include: _predictors_, _covariate_, or _features_.
 
-- $\boldsymbol \beta =$ our parameters.
+    Note. Bold face indicates a _vector_.
 
-- $\mathbf x^\top \boldsymbol \beta = \beta_0 + \beta_1 x_1 + \dots + \beta_p x_p$ is the __linear predictor__ (also called $\boldsymbol \eta$).
+- $\boldsymbol \beta:$ our parameters.
+
+- $\mathbf x^\top \boldsymbol \beta = \beta_0 + \beta_1 x_1 + \dots + \beta_p x_p:$ the __linear predictor__ (also called $\boldsymbol \eta$).
 
 - Hats on top of variables indicate we are talking about an estimated value (e.g. $\hat y$, $\hat \beta_1$, etc.)
 
@@ -66,7 +68,7 @@ $$
 
 - The link function in linear regression is implicit because it's just the "identity function":
 
-    $E[y \mid \mathbf x] = \mathbf x^\top \boldsymbol \beta$
+    $$E[y \mid \mathbf x] = \mathbf x^\top \boldsymbol \beta$$
     
     This "identity" link function makes it _very easy_ to interpret, when compared with other link functions. 
     
@@ -74,15 +76,15 @@ $$
     
 - In logistic regression we have:
     
-    $\text{logit}(E[y \mid \mathbf x]) = \mathbf x^\top \boldsymbol \beta$
+    $$\text{logit}(E[y \mid \mathbf x]) = \mathbf x^\top \boldsymbol \beta$$
     
     and
     
-    $E[y \mid \mathbf x] = \text{logit}^{-1}(\mathbf x^\top \boldsymbol \beta)$
+    $$E[y \mid \mathbf x] = \text{logit}^{-1}(\mathbf x^\top \boldsymbol \beta)$$
     
     which amounts to this:
     
-$\Pr(y = 1 \mid \mathbf x) = \frac{\exp({\mathbf x^\top \boldsymbol \beta})}{1 + \exp({\mathbf x^\top \boldsymbol \beta})}$
+    $$\Pr(y = 1 \mid \mathbf x) = \frac{\exp({\mathbf x^\top \boldsymbol \beta})}{1 + \exp({\mathbf x^\top \boldsymbol \beta})}$$
     
 - In R, we can define the inverse logit as:
 
@@ -299,6 +301,36 @@ exp(logistic_model$coefficients["word_george"])
 
 >This is an old dataset collected from the inbox of a guy named George.
 
+You can use the `predict()` to figure out how accurate the model is on your sample data (also known as _training data_).
+
+```{r}
+df <- email %>% 
+  select(spam) %>% 
+  mutate(linear_predictor = predict(logistic_model),    
+         prob = invlogit(linear_predictor),
+         pred = prob > 0.5)     #If the probability is above 0.5, it's taken to be spam.
+
+confusion_matrix <- table(Prediction = df$pred, Truth = as.logical(df$spam))
+
+confusion_matrix
+```
+
+The previous table is commonly known as a _confusion matrix_. It basically says that 167 spam emails where predicted to be ham emails, and that 119 ham emails were mislabelled to be spam. The other emails were correctly classified.
+
+We can then calculate the accuracy of our model on this dataset as follows:
+
+```{r}
+(confusion_matrix[1, 1] + confusion_matrix[2, 2]) / sum(confusion_matrix)
+```
+
+So this relatively simple logistic regression is `r scales::percent((confusion_matrix[1, 1] + confusion_matrix[2, 2]) / sum(confusion_matrix))`
+
+The yardstick function also contains some convenient functions for this purpose:
+
+```{r}
+yardstick::accuracy(confusion_matrix)
+```
+
 ### Model Fit
 
 Both linear and logistic regression can be fit using _maximum likelihood estimation_.
@@ -341,17 +373,16 @@ In R:
 
 ```{r}
 log_likelihood <- function(beta) {
+  
   X <- model.matrix(logistic_model)
   y <- logistic_model$y
-
+  
   eta <- X %*% beta
   p <- 1 / (1 + exp(-eta))
   return(sum(dbinom(y, size = 1, prob = p, log = TRUE)))
 }
 
-
-
-init <- rep(0, ncol(email))
+init <- rep(0, model.matrix(logistic_model) %>% ncol())
 
 opt <- optim(init, fn = log_likelihood, method = "BFGS",
              # this next line is critical: 
@@ -364,8 +395,7 @@ cbind(glm = coef(logistic_model), optim = opt$par) %>%
   print(digits = 3)
 ```
 
-
-
+This is pretty good, considering the problem of "perfect separation" and that the dataset has 58 features.
 
 ## Space & Time
 
@@ -385,13 +415,13 @@ g <- airline %>%
 g
 ```
 
->If we sant to do _linear_ regression and it appears that noise is increasing over time, we likely need a transformation. Passenger numbers are like sales volume—they are always positive and are often discussed in percentage terms. This suggests that we should be working on the log scale.
+>If we want to do _linear_ regression and it appears that noise is increasing over time, we likely need a transformation. Passenger numbers are like sales volume—they are always positive and are often discussed in percentage terms. This suggests that we should be working on the log scale.
 
 ```{r}
 g + scale_y_log10()
 ```
 
-If we include time as a continuous variable $x$ (i.e. $x = 1, \dots, n $) and a different intercept for each month, we have the following model:
+If we include time as a continuous variable $x$ (i.e. $x = 1, \dots, n$) and a different intercept for each month, we have the following model:
 
 $$
 \log(y_t) = \alpha_{j[t]} + \beta \ x_t + \epsilon_t
@@ -406,7 +436,7 @@ airline <- airline %>%
 model_time <- glm(log(Passengers) ~ Time + Month, data = airline)
 model_time
 
-airline$pred <- predict(model_time) %>% exp()
+airline$pred <- predict(model_time) %>% exp()   ## get log("Predicted Passengers") and undo the log
 ```
 
 ```{r}
