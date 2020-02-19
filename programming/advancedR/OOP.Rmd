@@ -202,13 +202,14 @@ S3 is R's first and most used Object-Oriented system (it's used in the `base` an
 
 > Since S3 has few built-in constraints, the key to its successful use is applying the constraints yourself. 
 
-1. An S3 object is a base type with _at least_ a `class` attribute.
+- An S3 object is a base type with _at least_ one `class` attribute.
 
-    For example, factors are integer types, have a `class` attribute "factor", and also a "levels" attribute.
+    For example, factors are integer types that have a `class` attribute "factor" and also a "levels" attribute.
 
 
     ```{r}
     fx <- factor(c("b", "a", "c"))
+    fx
     typeof(fx)
     attributes(fx)
     ```
@@ -219,9 +220,11 @@ S3 is R's first and most used Object-Oriented system (it's used in the `base` an
     unclass(fx)  ## equivalent to attr(fx, "class") <- NULL
     ```
 
-- An S3 object behaves differently from its underlying base type whenever it’s passed to a __generic__ function.
+- An S3 object behaves differently from its underlying base type whenever it’s passed to a __generic function__.
 
     >A generic function defines an interface, which uses a different implementation depending on the class of an argument (almost always the first argument).
+    
+    For example, the ubiquitous `str` and `print` functions are generic.
 
     ```{r}
     sloop::ftype(str)
@@ -231,17 +234,17 @@ S3 is R's first and most used Object-Oriented system (it's used in the `base` an
 
     >The generic is a middleman: its job is to define the interface (i.e. the arguments) then find the right implementation for the job. The implementation for a specific class is called a __method__, and the generic finds that method by performing __method dispatch__.
     
-All S3 methods are functions with a special naming scheme: `generic.class()`.  
+- All S3 methods are functions with a special naming scheme: `generic.class()`.  
 
-```{r}
-print.factor(fx)
-```
+    ```{r}
+    print.factor(fx)
+    ```
 
-But you should never call the method directly, instead rely on the generic to find the right function for you.
+    But you should never call the method directly, instead rely on the generic to find the right function for you.
 
 ___Exercises.___
 
->Make a list of commonly used base R functions that contain `.` in their name but are not S3 methods.
+>Make a list of commonly used base R functions that contain `.` in their name but are _not_ S3 methods.
 
 Many functions in base R are point-separated, even though they are not `generic.method()` functions. They were written before S3. We can check if they're _methods_ using `sloop::ftype()`.
 
@@ -288,8 +291,6 @@ class(x)
 inherits(x, "my_class")
 ```
 
->When using a class in a package, I recommend including the package name in the class name. That ensures you won’t accidentally clash with a class defined by another package.
-
 >S3 has no checks for correctness which means you can change the class of existing objects:
 
 ```{r, error=TRUE}
@@ -315,13 +316,13 @@ In practice, this immense flexibility shouldn't cause any problems.
 
 Wickham recommends having three functions when constructing new classes:
 
-1. _A low-level **constructor**, `new_myclass()`, that efficiently creates new objects with the correct structure._ You should _always_ provide a constructor.
+1. A low-level **constructor**, `new_myclass()`, that efficiently creates new objects with the correct structure. You should _always_ provide a constructor.
 
-2. _A **validator**, `validate_myclass()`, that performs more computationally expensive checks to ensure that the object has correct values._
+2. A **validator**, `validate_myclass()`, that performs more computationally expensive checks to ensure that the object has correct values.
 
-3. _A user-friendly **helper**, `myclass()`, that provides a convenient way for others to create objects of your class._
+3. A user-friendly **helper**, `myclass()`, that provides a convenient way for others to create objects of your class.
 
-#### Constructors
+#### __Constructors__
 
 The S3 system has no way to ensure that all objects of a given class have the same structure (i.e. "the same base type and the same attributes with the same types"). This is why we should use constructors to _enforce_ a consistent structure.
 
@@ -361,7 +362,7 @@ new_difftime(0, units = "mins")
 
 >The constructor is a developer function: it will be called in many places, by an experienced user. That means it’s OK to trade a little safety in return for performance, and you should avoid potentially time-consuming checks in the constructor.
 
-#### Validators
+#### __Validators__
 
 Constructors only check that types are correct. But some classes require complicated checks for validity.
 
@@ -405,7 +406,7 @@ validate_factor(new_factor(0:1, "a"))
 validate_factor(new_factor(1:5, "a"))
 ```
 
-#### Helpers
+#### __Helpers__
 
 Helpers strive to make the life of end users as easy as possible.
 
@@ -440,17 +441,17 @@ It's hard to give any general advice for this last bullet point, but Wickham doe
 
 - _Often, the most natural representation of a complex object is a string. For example, it’s very convenient to specify factors with a character vector._
 
-```{r}
-factor <- function(x = character(), levels = unique(x)) {
-  # match returns a vector of the positions of (first) matches of its first
-  # argument in its second.
-  ind <- match(x, levels)
-  validate_factor(new_factor(ind, levels))
-}
-
-x <- sample(letters[1:5], 10, replace = TRUE)
-factor(x)
-```
+    ```{r}
+    factor <- function(x = character(), levels = unique(x)) {
+      # match returns a vector of the positions of (first) matches of its first
+      # argument in its second.
+      ind <- match(x, levels)
+      validate_factor(new_factor(ind, levels))
+    }
+    
+    x <- sample(letters[1:5], 10, replace = TRUE)
+    factor(x)
+    ```
 
 - _Some complex objects are most naturally specified by multiple simple components._
 
@@ -479,7 +480,7 @@ Data frames are built on top of named lists of vectors. Besides `class`, it has 
 
 ```{r}
 typeof(mtcars)
-attributes(mtcars)
+attributes(mtcars) %>% str()
 ```
 
 A `data.frame` constructor:
@@ -490,7 +491,7 @@ new_data.frame <- function(x = list(), row.names = NULL) {
   
   # Check all inputs are the same length
   rows <- unique(lengths(x))
-  stopifnot(length(rows) <= 1)
+  stopifnot(length(rows) <= 1)  ## allows data frames with 0 rows
   
   if (is.null(row.names)) {
      row.names <- if (length(rows) == 0) integer() else seq_along(1:rows)
@@ -558,7 +559,7 @@ roman(rpois(5, 100))
 
 ### Generics and methods
 
-S3 generics perform __method dispatch__, they find the specific implementation for a given class. This gets done by using the `UseMethod()` function, which is called by every generic (with the exception of _internal generics_).
+S3 generic functions perform __method dispatch__: they find the specific implementation for a given class. This gets done by using the `UseMethod()` function, which is called by every generic (with the exception of _internal generics_).
 
 >`UseMethod()` takes two arguments: the name of the generic function (required), and the argument to use for method dispatch (optional). If you omit the second argument, it will dispatch based on the first argument, which is almost always what is desired.
 
@@ -595,7 +596,7 @@ __How does method dispatch actually work?__
 paste0("generic", ".", c(class(x), "default"))
 ```
 
-This can create some very weird bugs if you are not careful about class names. For example, by creating a vector of class "test" and then calling the `t()` for matrix transposition, we end up calling the unrelated `t.test()` function.
+This can create some very weird bugs if you are not careful about class names. For example, by creating a vector of class "test" and then calling the `t()` function for matrix transposition, we end up calling the unrelated `t.test()` function.
 
 ```{r}
 x <- structure(1:10, class = "test")
@@ -611,7 +612,7 @@ x <- Sys.Date()
 s3_dispatch(print(x))
 ```
 
-Here,  "=>" indicates the method that is called, whereas "*" indicates a method that is not called, even though it is defined.
+Here,  `=>` indicates the method that is called, whereas `*` indicates a method that is not called, even though it is defined.
 
 > The "default" class is a special __pseudo-class.__ This is not a real class, but is included to make it possible to define a standard fallback that is found whenever a class-specific method is not available.
 
@@ -626,7 +627,7 @@ ___Exercises.___
 
 >Which base generic has the greatest number of defined methods?
 
-```{r}
+```{r, message=FALSE}
 objs <- rlang::pkg_env("base") %>% as.list()
 objs <- objs[map_lgl(objs, is.function)]
 objs <- objs[map_lgl(names(objs), sloop::is_s3_generic)]
@@ -670,6 +671,7 @@ Calling `g.default(x = 1)` retrieves `y` from the global environment. But typing
 The subsetting operator `[` is both "primitive" and "generic". Thus, we can't really take a look into its arguments. We can, however, take a look at some of the methods it implements.
 
 ```{r}
+ftype(`[`)
 formals(`[.factor`)
 formals(`[.Date`)
 formals(`[.table`)
@@ -680,7 +682,9 @@ It's very likely that `[`'s arguments are just `x` and `...`. But we can't know 
 
 ### Object styles
 
-__Vector style__ classes like `Factor` and `Date` have one key property: `length(x)` represents the number of observations in the the vector. There are three object styles that don't have this property.
+__Vector style__ classes like `Factor` and `Date` have one key property: _`length(x)` represents the number of observations in the the vector_. 
+
+There are three object styles that don't have this property:
 
 - __Record style__ objects use a list of equal-length vectors to represent individual components of the object. For example, `POSIXlt` is a list of 11 date-time components: year, month, day, hour, min, sec, etc.
 
@@ -731,7 +735,7 @@ This mechanism is powered by three things:
     class(ordered("x"))
     ```
 
-    Here, `ordered` is a __subclass__ of `factor`; `factor` is __superclass__ of `ordered`.
+    Here, `ordered` is a __subclass__ of `factor`, whereas `factor` is a __superclass__ of `ordered`.
 
 - If a method is not found for the first class, R looks for a method for the second, and so on.
 
@@ -747,7 +751,11 @@ This mechanism is powered by three things:
 
     Note that `s3_dispatch()` reports delegation with "->".
     
-___`NextMethod()`___
+#### __`NextMethod()`__
+
+`NextMethod()` is one of the hardest parts to understand about inheritance. Here, we will work through a concrete example for the most common use case: `[`.
+
+We start by creating a simple toy class: a `secret` class that hides its output when printed:
 
 ```{r}
 new_secret <- function(x = double()) {
@@ -764,19 +772,523 @@ x <- new_secret(c(15, 1, 456))
 x
 ```
 
+Unfortunately, the default `[` method doesn't preserve the `secret` class (i.e. it can’t keep a secret hahaha).
+
 ```{r}
+x[1]
 sloop::s3_dispatch(x[1])
 ```
 
+Thus, we also need to provide a `[.secret` method. 
 
-Unfortunately, the default `[` method can’t keep a secret (i.e. it doesn't preserve the `secret` class).
+However, the naive approach won’t work because we’ll get stuck in an infinite loop:
 
+```{r error=TRUE}
+`[.secret` <- function(x, i) {
+  new_secret(x[i])
+}
 
-https://vctrs.r-lib.org/articles/s3-vector.html
+# x[1] Error: C stack usage  7970496 is too close to the limit
+```
 
+Instead, we need to be able to call the underlying `[` code. 
 
+This approach works:
+
+```{r}
+`[.secret` <- function(x, i) {
+  new_secret(unclass(x)[i])
+}
+
+x[1]
+```
+
+>A better approach is to use `NextMethod()`, which concisely solves the problem of delegating to the method that would have been called if `[.secret` didn’t exist:
+
+```{r}
+`[.secret` <- function(x, i) {
+  new_secret(NextMethod())
+}
+
+x[1]
+```
+
+>We can see what’s going on with `sloop::s3_dispatch()`. The `=>` indicates that `[.secret` is called, but that `NextMethod()` delegates work to the underlying internal `[` method, as shown by the `->`
+
+```{r}
+s3_dispatch(x[1])
+```
+
+#### __Subclassing__
+
+Allowing subclasses requires changes to the constructor and careful thought when creating methods.
+
+>To allow subclasses, the parent constructor needs to have `...` and `class` arguments:
+
+```{r}
+new_secret <- function(x = double(), ..., class = character()) {
+  stopifnot(is.double(x))
+  
+  structure(x, ..., class = c(class, "secret"))
+}
+
+```
+
+Now, we can define a __subclass constructor__, which simply calls the "parent class" constructor with additional arguments as needed.
+
+>For example, imagine we want to create a `supersecret` class which also hides the number of characters:
+
+```{r}
+new_supersecret <- function(x = double()) {
+  new_secret(x, class = "supersecret")
+}
+
+print.supersecret <- function(x, ...) {
+  print(rep("xxxxx", length(x)))
+  invisible(x)
+}
+
+x2 <- new_supersecret(c(15, 1, 456))
+x2
+```
+
+Currently, the `[.secret` method always returns a `secret`, even when given a `supersecret`.
+
+```{r}
+x2[1]
+identical(x[1], x2[1])
+```
+
+How do we make sure that `[.secret` returns the same class as `x` even if it’s a subclass (i.e. `supersecret`)?
+
+>As far as I can tell, there is no way to solve this problem using base R alone. Instead, you’ll need to use the [`vctrs`](https://vctrs.r-lib.org/) package, which provides a solution in the form of the `vctrs::vec_restore()` generic. This generic takes two inputs: an object which has lost subclass information, and a template object to use for restoration.
+
+```{r}
+vec_restore.secret <- function(x, to, ...) new_secret(x)
+vec_restore.supersecret <- function(x, to, ...) new_supersecret(x)
+```
+
+>(If your class has attributes, you’ll need to pass them from to into the constructor.)
+
+Now we can remake `[.secret` so that it returns subclasses:
+
+```{r}
+`[.secret` <- function(x, i) {
+  vctrs::vec_restore(NextMethod(), x)
+}
+
+x2[1]
+identical(x[1], x2[1])
+```
+
+>If you build your class using the tools provided by the `vctrs` package, `[` will gain this behaviour automatically. You will only need to provide your own `[` method if you use attributes that depend on the data or want non-standard subsetting behaviour. See [here](https://vctrs.r-lib.org/articles/s3-vector.html) for details.
+
+___Exercises___
+
+>What do you expect this code to return? What does it actually return? Why?
+
+```{r}
+generic2 <- function(x) UseMethod("generic2")
+generic2.a1 <- function(x) "a1"
+generic2.a2 <- function(x) "a2"
+generic2.b <- function(x) {
+  class(x) <- "a1"
+  NextMethod()
+}
+```
+
+```{r, eval=FALSE}
+generic2(structure(list(), class = c("b", "a2")))
+```
+
+We might think that the previous chunk of code calls `generic2.b`, which changes the class of `x` such that the final output is `"a1"`. However, this is not what happens.
+
+```{r}
+generic2(structure(list(), class = c("b", "a2")))
+```
+
+`UseMethod()` tracks the list of potential next methods with a special variable called `.Class`, "which means that modifying the object that’s being dispatched upon will have no impact on which method gets called next".
+
+We can see how this works in the following chunk of code:
+
+```{r}
+generic2.c <- function(x) {
+  class(x) <- NULL
+  print(.Class)
+  NextMethod()
+}
+
+generic2(structure(list(), class = c("c", "b", "a2")))
+```
 
 ## R6
 
-R6 - very different to S3/S4, it's much more like OOP in python or javascript, or basically any other popular programming language of the last 20 years (apart from Julia). Powers reticulate. Useful in various places in Shiny. Avoided unless you really need it.
+The R6 system has two special properties:
 
+1. It uses the encapsulated OOP paradigm. This means that methods belong to objects (instead of generic functions), and you call them like `object$method()`.
+
+2. R6 objects are _mutable_, they are modified-in-place (i.e. they have "reference semantics"). This means that using methods can modify objects directly.
+
+    For example:
+
+    ```{r, eval=FALSE}
+    object             ## obj has a value
+    object$modify()    ## method modifies value
+    object             ## obj has a different value
+    ```
+
+    More importantly, it means that objects are not copied when modified, this is why we need to `$clone()` R6 objects instead. More on that later.
+
+These properties make it resemble OOP in Python, JavaScript, or basically any other popular programming language (except for Julia).
+
+To recap, these are the main differences between encapsulated and functional OOP:
+
+__Functional__: 
+
+- Objects contain data
+
+- Class methods are separate from objects
+
+- Objects are not mutable
+
+__Encapsulated__:
+
+- Objects contain data _and_ methods
+
+- Objects are mutable
+
+### Classes and methods
+
+>[__R6__](https://r6.r-lib.org/index.html) only needs a single function call to create both the class and its methods: `R6::R6Class()`. This is the only function from the package that you’ll ever use!
+
+The following example uses the two most important arguments in `R6Class()`:
+
+1. `classname`: By convention, R6 classes have UpperCamelCase names. This also makes it possible to use R6 objects and S3 generics.
+
+2. `public`: Supplies a list of __methods__ (i.e. functions) and __fields__ (i.e. anything else) that make up the public interface of the object. By convention, methods and fields use snake_case. Methods can access the methods and fields of the current object via `self$...`
+
+```{r}
+library(R6)
+
+Accumulator <- R6Class("Accumulator", list(
+  sum = 0,
+  add = function(x = 1) {
+    self$sum <- self$sum + x 
+    invisible(self)
+  })
+)
+```
+
+>You should always assign the result of `R6Class()` into a variable with the same name as the class, because `R6Class()` returns an R6 object that defines the class:
+
+```{r}
+Accumulator
+```
+
+>You construct a new object from the class by calling the `new()` method. In R6, methods belong to objects, so you use `$` to access `new()`:
+
+```{r}
+x <- Accumulator$new()
+```
+
+Finally, you can call the methods and access the fields in `public` with the `$` operator.
+
+```{r}
+x$sum
+x$add(25)
+x$sum
+x$add(1)$add(2)$add(3) ## method chaining
+x$sum
+```
+
+When thinking about the translation between S3 and R6, recall that we talk about __fields__ and __methods__ as opposed to __variables__ and __functions__.
+
+### Important methods
+
+Two important methods _should_ be defined for most classes: 
+
+1. `$initialize()` overrides the default behaviour of `$new()`.
+
+2. `$print()` allows you to override the default printing behaviour. As with any R6 method called for its side effects, `$print()` should return `invisible(self)`.
+
+```{r, error=TRUE}
+Person <- R6Class("Person", list(
+  name = NULL,
+  age = NA,
+  
+  initialize = function(name, age = NA) {
+    stopifnot(is.character(name), length(name) == 1)
+    stopifnot(is.numeric(age), length(age) == 1)
+    
+    self$name <- name
+    self$age <- age
+  }, 
+  
+  print = function(...) {
+    cat("Person: \n")
+    cat("  Name: ", self$name, "\n", sep = "")
+    cat("  Age:  ", self$age, "\n", sep = "")
+    invisible(self)
+  }
+))
+
+andres <- Person$new(name = "Andrés", age = "thirty")
+andres <- Person$new("Andrés", NA_integer_)
+andres
+```
+
+You can also add new elements to an existing class with `$set()`. You just have to supply the _visibility_, the _name_, and the _component_.
+
+```{r}
+Accumulator <- R6Class("Accumulator")
+Accumulator$set(which = "public", name = "sum", value = 0)
+Accumulator$set("public", "add", function(x = 1) {
+  self$sum <- self$sum + x 
+  invisible(self)
+})
+```
+
+___Inheritance___
+
+>To inherit behaviour from an existing class, provide the class object to the `inherit` argument:
+
+```{r}
+AccumulatorChatty <- R6Class("AccumulatorChatty", 
+  inherit = Accumulator,
+  public = list(
+    add = function(x = 1) {
+      cat("Adding ", x, "\n", sep = "")
+      super$add(x = x)
+    }
+  )
+)
+
+x2 <- AccumulatorChatty$new()
+x2$add(10)$add(1)$sum
+```
+
+>`$add()` overrides the superclass implementation, but we can still delegate to the superclass implementation by using `super$`. (This is analogous to `NextMethod()`). Any methods which are not overridden will use the implementation in the parent class.
+
+___Exercises___
+
+>Create a bank account R6 class that stores a balance and allows you to deposit and withdraw money.
+
+```{r}
+BankAccount <- R6Class(classname = "BankAccount", public = list(
+  balance = NULL,
+  initialize = function(original_deposit) {
+    stopifnot(is.numeric(original_deposit))
+    self$balance <- original_deposit
+  },
+  
+  withdraw = function(x) {
+    self$balance <- self$balance - x
+    cat("-", x, "\n", sep = "")
+    invisible(self)
+  },
+  deposit = function(x) {
+    self$balance <- self$balance + x
+    cat("+", x, "\n", sep = "")
+    invisible(self)
+  },
+  
+  print = function(...) {
+    cat("Your balance is", self$balance, "dollars.")
+  }
+))
+```
+
+>Create a subclass that throws an error if you attempt to go into overdraft. 
+
+```{r, error=TRUE}
+BankAccountError <- R6Class("BankAccountError",
+  inherit = BankAccount,
+  public = list(
+    withdraw = function(x) {
+      if (self$balance - x < 0) {
+        stop("Your `withdraw` must be smaller ", "than your `balance`.")
+      }
+      super$withdraw(x)
+    }
+))
+
+account <- BankAccountError$new(10)
+
+account$
+  deposit(20)$
+  withdraw(50)
+```
+
+>Create another subclass that allows you to go into overdraft, but charges you a fee.
+
+```{r}
+BankAccountOverCharge <- R6Class("BankAccountOverCharge",
+  inherit = BankAccount,
+  public = list(
+    withdraw = function(x) {
+      fee <- 5
+      if (self$balance - x < 0) {
+          cat(fee, " dollars extra fee!\n", sep = "")
+          super$withdraw(x + fee)
+          invisible(self)
+      } else {
+        super$withdraw(x)
+      }
+    }
+))
+
+account <- BankAccountOverCharge$new(10)
+
+account$withdraw(20)
+account
+```
+
+>Create an R6 class that represents a shuffled deck of cards. You should be able to draw cards from the deck with `$draw(n)`, and return all cards to the deck and reshuffle with `$reshuffle()`.
+
+```{r}
+Deck <- R6Class("Deck", list(
+  deck = NULL,
+  out_of_deck = NULL,
+  
+  initialize = function() {
+    suit <- c("♠", "♥", "♦", "♣")
+    value <- c("A", 2:10, "J", "Q", "K")
+    self$deck <- sample(paste0(rep(value, 4), suit))
+  },
+  
+  draw = function(n) {
+    x <- sample(self$deck, size = n)
+    cat(x, "\n")
+    self$out_of_deck <- append(x, self$out_of_deck)
+    self$deck <- setdiff(self$deck, self$out_of_deck)
+    invisible(self)
+  },
+  
+  reshuffle = function() {
+    self$deck <- sample(c(self$deck, self$out_of_deck))
+    self$out_of_deck <- NULL
+    invisible(self)
+  },
+  
+  print = function(...) {
+    cat("Number of cards in deck:", length(self$deck), "\n")
+    cat("Number of cards outside deck:", length(self$out_of_deck), "\n")
+  }
+))
+
+deck <- Deck$new()
+
+deck$draw(5)$draw(5)$draw(5)
+deck
+
+deck$reshuffle()
+deck
+```
+
+>Why can’t you model a bank account or a deck of cards with an S3 class?
+
+S3 follows R's standard _copy-on-modify_ semantics. If we were to model a bank account using S3, we would have to create multiple modified bank accounts and keep track of the one we're ultimately interested in. This sort of problem seems more natural to approach via object oriented 
+
+>Create an R6 class that allows you to get and set the current timezone. You can access the current timezone with Sys.timezone() and set it with Sys.setenv(TZ = "newtimezone"). When setting the time zone, make sure the new time zone is in the list provided by OlsonNames().
+
+
+```{r}
+## MAYBE THIS DOESN'T WORK WITHOUT ADMINISTRATOR PRIVILEDGES
+TimeManager <- R6Class("TimeManager", list(
+  get = function() Sys.timezone(),
+  set = function(tz = OlsonNames()) {
+    x <- match.arg(tz)
+    Sys.setenv(TZ = x)
+  }
+))
+
+tz <- TimeManager$new()
+
+tz$set("America/Bogota")
+
+x <- "America/Bogota"
+
+Sys.setenv(TZ = x)
+Sys.timezone()
+```
+
+>Create an R6 class that manages the current working directory. It should have `$get()` and `$set()` methods.
+
+```{r}
+WorkingDirectory <- R6Class("WorkingDirectory", list(
+  get = function() {
+    getwd()
+  },
+  set = function(value) {
+    setwd(value)
+  }
+))
+```
+
+
+
+### Controlling access
+
+The `R6Class()` function has two other arguments that work similarly to `public`:
+
+- `private` allows you to create fields and methods that are only available from within the class, not outside of it.
+
+    It works just like the `public` argument. You give it a list of methods (functions) and fiels (everything else). These are available within methods using `private$` (instead of `$self`). You cannot access private fields or methods outside of the class.
+    
+    >The distinction between public and private fields is important when you create complex networks of classes, and you want to make it as clear as possible what it's ok for others to access. Anything that's private can be more easily refactored because you know others aren't relying on it. Private methods tend to be less important in R compared to other programming languages because the object hierarchies in R tend to be simpler.
+
+- `active` allows you to define _dynamic_ (or _active_) fields. Active fields are implemented using __active bindings__. Each of these active bindings looks like a field from the outside, but is defined with functions (like methods).
+
+    >Each active binding is a function that takes a single argument: `value`. If the argument is `missing()`, the value is being retrieved; otherwise it's being modified.
+    
+    For example:
+    
+    ```{r}
+    Rando <- R6::R6Class("Rando", active = list(
+      random = function(value) {
+        if (missing(value)) {
+          runif(1)  
+        } else {
+          stop("Can't set `$random`", call. = FALSE)
+        }
+      }
+    ))
+    
+    y <- Rando$new()
+    y$random
+    y$random
+    ```
+    
+### Cloning
+
+>The primary consequence of reference semantics is that objects are not copied when modified.
+
+```{r}
+x <- Accumulator$new() 
+y <- x
+
+## They have the same memory address:
+c(lobstr::obj_addr(y), lobstr::obj_addr(x))
+
+y$add(10)
+c(y = y$sum, x = x$sum)
+```
+
+Instead, we need to `$clone()` the object.
+
+```{r}
+x <- Accumulator$new() 
+y <- x$clone()
+
+## They have a different memory address:
+c(lobstr::obj_addr(y), lobstr::obj_addr(x))
+
+y$add(10)
+c(y = y$sum, x = x$sum)
+```
+
+****
+
+Read more about R6 [__here__](https://r6.r-lib.org/).
+
+****

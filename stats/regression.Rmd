@@ -482,7 +482,7 @@ $$
 ```{r}
 airline <- airline %>% 
   mutate(Lag = lag(Passengers)) %>% 
-  na.omit()   ## this will remove one observation from our dataset
+  drop_na()   ## this will remove one observation from our dataset
 
 model_ar <- glm(log(Passengers) ~ log(Lag) + Month + Time, data = airline)
 
