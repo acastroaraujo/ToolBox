@@ -379,7 +379,8 @@ log_likelihood <- function(beta) {
   
   eta <- X %*% beta
   p <- 1 / (1 + exp(-eta))
-  return(sum(dbinom(y, size = 1, prob = p, log = TRUE)))
+  log_likelihood <- sum(dbinom(y, size = 1, prob = p, log = TRUE))
+  return(log_likelihood)
 }
 
 init <- rep(0, model.matrix(logistic_model) %>% ncol())
