@@ -1,0 +1,132 @@
+---
+title: "yelp"
+author: "andrés castro araújo"
+date: "3/9/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Set up and download
+
+```{r}
+source("yelp_api_keys.R")
+library(yelpr)
+library(tidyverse)
+
+search_yelp <- function(yelp_category, yelp_location, meter_radius = 40e3) {
+
+  suppressMessages({
+  num <- business_search(api_key = key[[1]],
+                        categories = yelp_category,
+                        limit = 1,
+                        location = yelp_location,
+                        radius = meter_radius,  
+                        sort_by = "review_count")
+  })
+  
+  message(num$total, " places found!")
+  
+  output_length <- min(1e3 / 50, ceiling(num$total / 50))
+  output <- vector("list", output_length)
+  offset_num <- 0
+  
+  if (length(output) > 1) { ## temporary fix to case where length(output) == 1
+    pb <- txtProgressBar(min = 1, max = length(output), style = 3)
+  } 
+  
+  for (i in seq_along(output)) {
+    suppressMessages({
+    output[[i]] <- business_search(api_key = sample(key, size = 1)[[1]],
+                                   categories = yelp_category,
+                                   limit = 50,
+                                   offset = offset_num,
+                                   location = yelp_location,
+                                   radius = meter_radius, 
+                                   sort_by = "review_count")
+    })
+    offset_num <- offset_num + 50
+    
+    if (length(output) > 1) setTxtProgressBar(pb, i)
+    Sys.sleep(runif(1))
+  }
+  
+  output %>% 
+    map(~.x$business) %>% 
+    map(clean_up) %>% 
+    bind_rows() %>% 
+    mutate(category = yelp_category,
+           location = yelp_location)
+
+}
+
+clean_up <- function(df) {
+  df <- cbind(df, df$coordinates)
+  df <- df %>% 
+    select(name, review_count, rating, longitude, latitude, alias, id, url)
+  return(df)
+}
+```
+
+A couple of notes:
+
+- `limit` + `offset` must be `<=` 1,000
+
+    This means we can only scrape 1,000 restaurants at a time.
+
+- 5,000 API limit per key
+
+- There's a wide `categories` list here:
+
+    https://www.yelp.com/developers/documentation/v3/all_category_list
+
+```{r, eval=FALSE}
+outfolder <- "output/"
+if (!dir.exists(outfolder)) dir.create(outfolder)
+
+search_categories <- c("arts", "localflavor", "active", "food", "restaurants", "burgers")
+
+search_locations <- c(
+  "Los Angeles, CA", "Houston, TX", "London, United Kingdom", "New York, NY",
+  "New Orleans, LA", "Chicago, IL", "Philadelphia, PA", "Boston, MA", "Seattle, WA", 
+  "Las Vegas, NV", "Atlanta, GA", "Miami, FL", "Orlando, FL", "San Francisco, CA",
+  "Nashville, TN", "Washington, DC"
+)
+
+name_abb <- c(
+  "la_", "houston_", "london_", "nyc_", "new_orleans_", "chicago_", "philadelphia_",
+  "boston_", "seattle_", "vegas_", "atlanta_", "miami_", "orlando_", "san_francisco",
+  "nashville_", "washington_dc_"
+)
+
+outfolder <- "output/"
+if (!dir.exists(outfolder)) dir.create(outfolder)
+
+for (i in seq_along(search_categories)) {
+  for (j in seq_along(search_locations)) {
+    cat("\n", search_locations[[j]], "-", search_categories[[i]], "\n")
+    search_yelp(search_categories[[i]], search_locations[[j]]) %>% 
+      write_rds(paste0(outfolder, name_abb[[j]], search_categories[[i]], ".rds"), 
+                compress = "gz")
+    flush.console()
+  }
+}
+```
+
+## Putting it back together
+
+```{r}
+files <- list.files(outfolder, full.names = TRUE)
+
+df <- map(files, read_rds) %>% 
+  bind_rows() %>% 
+  arrange(desc(review_count)) %>% 
+  select(location, name, review_count, rating, category, url, longitude, latitude) %>% 
+  mutate(url = str_remove(url, "\\?.*"))
+
+write_rds(df, "yelp_data.rds", compress = "gz")
+```
+
+
