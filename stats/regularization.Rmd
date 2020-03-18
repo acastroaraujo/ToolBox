@@ -1,0 +1,236 @@
+---
+title: "Regularization"
+author: "andrés castro araújo"
+output: 
+  html_document:
+    code_folding: show
+    theme: paper
+    toc: yes
+    toc_float: 
+      collapsed: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "", fig.align = "center", 
+                      comment = "")
+
+library(tidyverse)
+```
+
+```{css, echo=FALSE}
+blockquote {
+    padding: 10px 20px;
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: #828282;
+    border-left: 10px solid #EEE;
+}
+
+body {
+    font-size: 14px;
+}
+```
+
+## Introduction
+
+Most of modern statistics is all about the _out-of-sample_ accuracy of predictions. We want to learn something about the  "regular" features of the real world, not something about the idiosyncratic features of our _in-sample_ data. This diction has given rise the notion of "training" and "testing" data.
+
+In this setting, there are two things to avoid:
+
+- __Underfitting__: which leads to poor prediction by learning _too little_ from the data.
+
+- __Overfitting__: which leads to poor prediction by learning _too much_ from the data.
+
+    This is reminescent of Jorge Luis Borges' short story _Funes the Memorious_, in which the main character acquires the ability of remembering absolutely everything:
+
+    >I suspect, however, that he was not very capable of thought. _To think is to forget differences, generalize, make abstractions. In the teeming world of Funes, there were only details, almost immediate in their presence._
+
+Thus, our objective is simply to _minimize some sort of error rate (or loss function) when making predictions on new data_.
+
+In the context of generalized linear models, this loss function corresponds to the __deviance__ (which is inversely proportional to the __likelihood__). In the case of simple linear regression models (or Gaussian models), this is just the sum of squared residuals.
+
+$$
+\text{dev}(\boldsymbol{\hat \beta}) \propto \sum_{i=1}^n (y_i - \mathbf x_i^\top\boldsymbol{\hat\beta})^2
+$$
+
+If we can't afford (or don't wish) to subset our sample into "testing" and "training" datasets, we can _estimate_ the predictive performance of a model on new data using __cross-validation__.
+
+___$K$-Fold Cross Validation___
+
+- Split the data randomly into $K$ subsets (or _folds_). Then, for $k = 1, \dots, K$:
+
+    - Use all data _except_ the $k$th fold to train the model.
+    
+    - Record an "error metric" for this model on the left-out fold.
+    
+- The end result is a set of out-of-sample metrics for the model.
+
+For example:
+
+```{r, message=FAlSE}
+## Functions 
+deviance_logistic <- function(y, p) {
+  stopifnot(between(p, 0, 1), y %in% c(0, 1))
+  
+  return(-2 * sum(y * log(p) + (1 - y) * log(1 - p)))
+}
+
+R2_from_deviance <- function(glm_obj, newdata, new_y) {
+  
+  p <- predict(glm_obj, newdata = newdata, type = "response")
+  dev <- deviance_logistic(new_y, p)
+  dev_null <- deviance_logistic(new_y, mean(new_y))
+  return(1 - (dev / dev_null))   ## double check this here
+}
+
+## Data 
+URL <- "https://raw.githubusercontent.com/TaddyLab/BDS/master/examples/semiconductor.csv"
+semiconductor <- read_csv(URL)
+
+logistic_reg <- glm(FAIL ~ ., data = semiconductor, family = binomial("logit"))
+
+## In-sample R squared
+R2_from_deviance(logistic_reg, semiconductor, semiconductor$FAIL)
+
+## Out-of-sample R squared estimate
+
+K <- 10
+index <- sample(1:K, replace = TRUE, size = nrow(semiconductor))
+output <- vector("double", length(K))
+for (k in 1:K) {
+  index_train <- which(index != k)
+  index_test <- which(index == k)
+  
+  mod <- glm(FAIL ~ ., family = binomial("logit"), data = semiconductor[index_train, ]) %>% 
+    suppressMessages()
+  output[[k]] <- R2_from_deviance(mod, semiconductor[index_test, ], 
+                                  semiconductor[index_test, ]$FAIL)
+}
+
+## The estimated out-of-sample R squared should be lower
+mean(output)
+```
+
+- A note on the data
+
+- A note on negative R squared values
+
+Ultimately, we get such bad performance because of __overfitting__. The solution is pretty straigthforward: _we need to learn less from this data._ We can accomplish this either by ignoring certain features (i.e. dropping variables) or by forcing are estimated coefficients ($\boldsymbol{\hat \beta}$) to have smaller effects.
+
+In mathematical terms, this translates into adding an extra cost (or __penalty__) to our _loss function_:
+
+$$
+\boldsymbol{\hat \beta} = \arg \min \overbrace{-2 \times \log likelihood}^\text{deviance} + 
+\overbrace{\lambda \sum_k C(\beta_k)}^\text{penalty}
+$$
+
+Here, $\lambda$ > 0 is the _penalty weight_. It's a tuning parameter that needs to be selected through some data-dependent procedure (e.g. $K$-Fold Cross Validation). 
+
+There are two popular forms of regularization:
+
+- __L1 regularization__: The cost added is proportional to the _absolute value_ of the weight coefficients (we call this LASSO in the context of regression).
+
+    $$
+    C(\beta_k) = |\beta_k|
+    $$
+
+- __L2 regularization__: The cost added is proportional to the _square value_ of the weight coefficients. L2 regularization is also called weight decay in the context of neural networks (in other context we call this Ridge regression).
+
+    $$
+    C(\beta_k) = \beta_k^2
+    $$
+    
+Add a note about how both forms of regularization can be understood in a Bayesian context as adding two different priors: respectively, laplacian and gaussian
+
+## LASSO
+
+The lasso is short for "least absolute shrinkage and selection operator". It's a procedure that allows us to _enumerate_ a number of candidate models to choose among. A __lasso regularization path__ minimizes the penalized log likelihood for a sequence of penalties $\lambda_1 > \lambda_2 > \dots$
+
+- Begin with $\lambda_1 = \min \{ \lambda: \boldsymbol{\hat \beta}_\lambda = \mathbf 0 \}$
+
+- For $t = 1, \dots, T$:
+
+    + Set $\lambda_t = \delta \lambda_{t - 1}$ for $\delta \in (0, 1)$
+    
+    + Find $\boldsymbol{ \hat \beta }_t$ to optimize the loss function under penalty $\lambda_t$
+    
+```{r, message=FALSE, fig.width=6, fig.height=3}
+library(glmnet)
+
+X <- model.matrix(FAIL ~ ., data = semiconductor)
+y <- semiconductor$FAIL
+
+lasso <- glmnet(X, y, family = "binomial", nlambda = 150, standardize = TRUE)
+
+broom::tidy(lasso) %>% 
+  ggplot(aes(color = term, y = estimate, x = log(lambda))) + 
+  geom_line(show.legend = FALSE, alpha = 0.5) + 
+  theme_minimal()
+```
+
+As we can see, the smallest value of $\lambda$ has non-zero estimates for most coefficients, whereas larger values of $\lambda$ exhibit some sort of shrinkage towards zero.
+
+Two important things to keep in mind:
+
+1. In classical regression using MLE, it doesn't matter which category in a categorical variable gets subsumed into the intercept. But the story is different with _penalized_ MLE: reference levels matter. The solution is usually to drop the reference level.
+
+    >Once you add a penalty to the deviance, there is no reason to have only $K - 1$ coefficients for a $K$-level factor. If every category level is given its own dummy variable, then every coefficient is shrunk toward a shared intercept. You are shrinking toward a shared mean, with only distinct effects getting nonzero $\beta_k$
+
+2. The scale of the covariates now matters, since all the $\beta_k$ are penalized by the _same_ $\lambda$. For example, compare the following two values:
+
+    $$
+    (2x) (\frac{\beta}{2}) = x \beta
+    $$
+
+    The coefficient on the left has half the penalty cost as the coefficient on the right. Rescaling the coefficients is accomplished  by the default argument `standardize = TRUE` in the `glmnet()` function. 
+    
+Up until now, we have 150 models (the default is `nlambda = 100`). We choose the best one using out-of-sample error rates, which we get using the `cv.glmnet()` function. 
+
+```{r}
+doMC::registerDoMC(cores = 6)
+lasso_cv <- cv.glmnet(X, y, nfolds = 20, family = "binomial", type.measure = "deviance", 
+                      parallel = TRUE)
+
+plot(lasso_cv)
+
+broom::tidy(lasso_cv) %>% 
+  ggplot(aes(log(lambda), estimate)) + 
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.5) + 
+  geom_line() +
+  theme_minimal() + 
+  geom_vline(xintercept = log(lasso_cv$lambda.1se), color = "red", linetype = "dashed") +
+  geom_vline(xintercept = log(lasso_cv$lambda.min), linetype = "dashed") +
+  labs(y = "Out-of-Sample Binomial Deviance")
+```
+
+Note that `glmnet()` offers two options for $\lambda$ selection: "lambda.min" and "lambda.1se". The first option is pretty much self-explanatory. The second option is more conservative, it defines the best $\lambda$ as the one with average out-of-sample deviance no more than one standard error away from the minimum. 
+
+```{r}
+lasso_cv$glmnet.fit %>% 
+  broom::tidy() %>% 
+  filter(lambda == lasso_cv$lambda.min) %>% 
+  pull(term) -> selected_features
+
+```
+
+We can now compare the out-of-sample R squared
+
+```{r}
+## Out-of-sample R squared estimate
+
+K <- 10
+index <- sample(1:K, replace = TRUE, size = nrow(semiconductor))
+output <- vector("double", length(K))
+
+for (k in 1:K) {
+  index_train <- which(index != k)
+  index_test <- which(index == k)
+  
+  mod <- glm(FAIL ~ ., family = binomial("logit"), data = semiconductor[index_train, c(selected_features[-1], "FAIL")]) %>% suppressMessages()
+  output[[k]] <- R2_from_deviance(mod, semiconductor[index_test, c(selected_features[-1], "FAIL")], semiconductor[index_test, c(selected_features[-1], "FAIL")]$FAIL)
+}
+
+## The estimated out-of-sample R squared should be lower
+mean(output)
+```
+

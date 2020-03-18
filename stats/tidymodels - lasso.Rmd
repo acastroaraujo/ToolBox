@@ -1,0 +1,75 @@
+---
+title: 'tidymodels: LASSO'
+author: "andrés castro araújo"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center")
+```
+
+```{r}
+library(tidyverse)
+```
+
+
+
+## The Data
+
+1. `office_ratings`: imdb ratings for episodes of The Office
+
+2. `schrute::theoffice`
+
+```{r, message=FALSE}
+office_ratings <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-17/office_ratings.csv')
+
+
+schrute::theoffice
+
+## Clean up
+
+remove_regex <- c("[:punct:]|[:digit:]|parts? |the |and ")
+
+office_ratings <- office_ratings %>% 
+  transmute(episode_name = str_to_lower(title) %>% 
+              str_remove_all(remove_regex) %>% str_trim(), 
+            imdb_rating)
+
+office_info <- schrute::theoffice %>% 
+  mutate(season = as.numeric(season), 
+         episode = as.numeric(episode),
+         episode_name = str_to_lower(episode_name) %>% 
+              str_remove_all(remove_regex) %>% str_trim()) %>% 
+  select(season, episode, episode_name, director, writer, character)
+
+characters <- office_info %>% 
+  count(episode_name, character) %>%
+  group_by(character) %>% 
+  filter(sum(n) > 500) %>%
+  ungroup() %>% 
+  pivot_wider(names_from = character, values_from = n, values_fill = list(n = 0)) 
+  
+creators <- office_info %>% 
+  distinct(episode_name, director, writer) %>% 
+  pivot_longer(director:writer, names_to = "role", values_to = "person") %>% 
+  tidyr::separate_rows(person, sep = ";") %>% 
+  group_by(person) %>% 
+  filter(n() > 10) %>% 
+  ungroup() %>% 
+  mutate(person_value = 1) %>% 
+  pivot_wider(names_from = person, values_from = person_value, 
+              values_fill = list(person_value = 0))
+
+office <- office_info %>% 
+  distinct(season, episode, episode_name) %>% 
+  inner_join(characters) %>% 
+  inner_join(creators) %>% 
+  inner_join(office_ratings) %>% 
+  janitor::clean_names()
+```
+
+```{r}
+office
+```
+
