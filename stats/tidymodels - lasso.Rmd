@@ -2,15 +2,37 @@
 title: 'tidymodels: LASSO'
 author: "andrés castro araújo"
 date: "`r Sys.Date()`"
-output: html_document
+output: 
+  html_document:
+    theme: paper
+    toc: yes
+    toc_float: 
+      collapsed: no
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.align = "center")
+knitr::opts_chunk$set(echo = TRUE, comment = "", fig.align = "center", 
+                      comment = "")
+```
+
+```{css, echo=FALSE}
+blockquote {
+    padding: 10px 20px;
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: #828282;
+    border-left: 10px solid #EEE;
+}
+
+body {
+  font-size: 14px;
+  background: #fffff8
+}
 ```
 
 ```{r}
 library(tidyverse)
+theme_set(acathemes::theme_super_minimal())
 ```
 
 
@@ -19,13 +41,10 @@ library(tidyverse)
 
 1. `office_ratings`: imdb ratings for episodes of The Office
 
-2. `schrute::theoffice`
+2. `schrute::theoffice`: information on each episode
 
 ```{r, message=FALSE}
 office_ratings <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-03-17/office_ratings.csv')
-
-
-schrute::theoffice
 
 ## Clean up
 
@@ -56,7 +75,7 @@ creators <- office_info %>%
   tidyr::separate_rows(person, sep = ";") %>% 
   group_by(person) %>% 
   filter(n() > 10) %>% 
-  ungroup() %>% 
+  distinct(episode_name, person) %>% 
   mutate(person_value = 1) %>% 
   pivot_wider(names_from = person, values_from = person_value, 
               values_fill = list(person_value = 0))
@@ -71,5 +90,131 @@ office <- office_info %>%
 
 ```{r}
 office
+```
+
+Season effects
+
+```{r}
+ggplot(office, aes(as.factor(season), imdb_rating)) + 
+  geom_boxplot() 
+```
+
+```{r}
+ggplot(office, aes(episode, imdb_rating, group = episode)) + 
+  geom_boxplot()
+```
+
+## The Model
+
+__Training / Testing__
+
+```{r}
+library(tidymodels)
+
+office_split <- initial_split(office, strata = season)
+office_train <- training(office_split)
+office_test <- testing(office_split)
+```
+
+__Preprocessing__
+
+```{r}
+office_recipe <- recipe(imdb_rating ~ ., data = office_train) %>% 
+  update_role(episode_name, new_role = "id") %>% ## Don't treat "episode name" as predictor
+  step_zv(all_numeric(), -all_outcomes()) %>% ## zero variance filer
+  step_normalize(all_numeric(), -all_outcomes())
+  
+office_prep <- prep(office_recipe, strings_as_factors = FALSE)
+
+office_prep
+```
+
+__Lasso__
+
+```{r}
+lasso_spec <- linear_reg(penalty = 0.1, mixture = 1) %>% 
+  set_engine("glmnet")
+
+wf <- workflow() %>% 
+  add_recipe(office_recipe)
+
+lasso_fit <- wf %>% 
+  add_model(lasso_spec) %>% 
+  fit(data = office_train)
+
+lasso_fit %>% 
+  pull_workflow_fit() %>% 
+  tidy()
+```
+
+```{r}
+lasso_fit %>% 
+  pull_workflow_fit() %>% 
+  tidy() %>% 
+  filter(term != "(Intercept)") %>% 
+  ggplot(aes(log(lambda), estimate, color = term)) + 
+  geom_line(show.legend = FALSE) + 
+  geom_hline(yintercept = 0, linetype = "dashed")
+```
+
+## Tune LASSO Parameters
+
+Pick the penalty value with resampling.
+
+```{r}
+set.seed(1234)
+office_boot <- bootstraps(office_train, strata = season)
+
+tune_spec <- linear_reg(penalty = tune(), mixture = 1) %>% 
+  set_engine("glmnet")
+
+lambda_grid <- grid_regular(penalty(), levels = 50)
+
+doParallel::registerDoParallel()
+
+set.seed(2020)
+
+lasso_grid <- tune_grid(
+  wf %>% add_model(tune_spec),
+  resamples = office_boot,
+  grid = lambda_grid
+)
+
+lasso_grid
+
+lasso_grid %>% 
+  collect_metrics()
+```
+
+```{r}
+lasso_grid %>% 
+  collect_metrics() %>% 
+  ggplot(aes(penalty, mean)) + 
+  geom_line() + 
+  geom_errorbar(aes(ymin = mean - std_err, ymax = mean + std_err), alpha = 1/4) + 
+  facet_wrap(~.metric, scales = "free", ncol = 1) + 
+  scale_x_log10()
+```
+
+```{r}
+(lowest_rmse <- lasso_grid %>% 
+  select_best("rmse", maximize = FALSE))
+```
+
+```{r}
+final_lasso <- finalize_workflow(wf %>% add_model(tune_spec), lowest_rmse)
+
+final_lasso %>% 
+  fit(office_train) %>% 
+  pull_workflow_fit() %>% 
+  vip::vi(lambda = lowest_rmse$penalty) %>% 
+  ggplot(aes(reorder(Variable, abs(Importance)), abs(Importance), fill = Sign)) + 
+  geom_col() +
+  coord_flip() +
+  labs(x = "Variable Importance", y = NULL)
+```
+
+```{r}
+last_fit(final_lasso, split = office_split) %>% collect_metrics()
 ```
 
