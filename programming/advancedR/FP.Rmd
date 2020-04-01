@@ -483,6 +483,16 @@ prod(integer())
 
 >If you’re using `reduce()` in a function, you should always supply `.init`. Think carefully about what your function should return when you pass a vector of length `0` or `1`, and make sure to test your implementation.
 
+___Exercises (outside the book)___
+
+>Implement Pascal's triangle using `accumulate()`
+
+```{r}
+## 1:5 gets passed to ... and never gets evaluated
+accumulate(1:5, function(x, ...) c(0, x) + c(x, 0), .init = 1)
+```
+
+
 ___Map-reduce___
 
 >You might have heard of map-reduce, the idea that powers technology like Hadoop. Now you can see how simple and powerful the underlying idea is: map-reduce is a map combined with a reduce. The difference for large data is that the data is spread over multiple computers. Each computer performs the map on the data that it has, then it sends the result to back to a coordinator which reduces the individual results back to a single result.
