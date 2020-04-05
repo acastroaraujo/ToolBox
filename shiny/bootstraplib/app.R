@@ -31,7 +31,7 @@ library(DT)
 
 # Custom functions
 
-source("covid_app_functions.R")
+source("app_functions.R")
 
 # Data --------------------------------------------------------------------
 
