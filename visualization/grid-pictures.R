@@ -7,12 +7,12 @@ library(tidyverse)
 library(sf)
 
 coin_toss <- function() {
-  sample(c(TRUE, FALSE), 1)
+  sample(c(TRUE, FALSE), size = 1, prob = c(0.5, 0.5))
 }
 
 N <- 80
-set.seed(12345)
-output <- map(0:N, function(j) {
+set.seed(123)
+output <- map(seq(0, N + 1), function(j) {
   v_sequence <- if (coin_toss()) seq(0, N, 2) else seq(1, N, 2)
   h_sequence <- if (coin_toss()) seq(0, N, 2) else seq(1, N, 2)
   v_lines <- purrr::map(v_sequence, function(i) matrix(c(j, j, i, i + 1), nrow = 2))  
@@ -22,10 +22,31 @@ output <- map(0:N, function(j) {
   tibble::enframe() %>% 
   sf::st_as_sf()
 
-output %>%
-  ggplot() + 
-  geom_sf(color = "steelblue") +
+ggplot() + 
+  geom_sf(data = output, color = "steelblue") +
   theme_void()
 
-ggsave("visualization/grid-pictures.png", device = "png", dpi = "print")
+ggsave("visualization/grid-pictures-1.png", device = "png", dpi = "print")
+
+chunks <- output$value %>% st_union() %>% st_polygonize() %>% st_cast()
+
+ggplot() + 
+  geom_sf(data = output, color = "steelblue") +
+  geom_sf(data = chunks, fill = "steelblue", color = "steelblue") +
+  theme_void() + 
+  theme(plot.background = element_rect(fill = "pink", color = "pink"))
+
+ggsave("visualization/grid-pictures-2.png", device = "png", dpi = "print")
+
+colors <- sample(flatten_chr(wesanderson::wes_palettes), size = length(chunks), replace = TRUE)
+chunks_and_colors <- tibble(chunks, colors) %>% sf::st_as_sf()
+
+ggplot() + 
+  geom_sf(data = output, color = "white", size = 0.2) +
+  geom_sf(data = chunks_and_colors, aes(fill = colors), color = NA, show.legend = FALSE) +
+  theme_void() + 
+  theme(plot.background = element_rect(fill = "pink", color = "pink"))
+
+ggsave("visualization/grid-pictures-3.png", device = "png", dpi = "print")
+
 
