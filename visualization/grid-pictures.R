@@ -10,7 +10,7 @@ coin_toss <- function() {
   sample(c(TRUE, FALSE), size = 1, prob = c(0.5, 0.5))
 }
 
-N <- 80
+N <- 200
 set.seed(123)
 output <- map(seq(0, N + 1), function(j) {
   v_sequence <- if (coin_toss()) seq(0, N, 2) else seq(1, N, 2)
