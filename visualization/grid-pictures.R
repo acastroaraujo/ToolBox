@@ -26,7 +26,7 @@ ggplot() +
   geom_sf(data = output, color = "steelblue") +
   theme_void()
 
-ggsave("visualization/grid-pictures-1.png", device = "png", dpi = "print")
+ggsave("visualization/grid-pictures/pic-1.png", device = "png", dpi = "print")
 
 chunks <- output$value %>% st_union() %>% st_polygonize() %>% st_cast()
 
@@ -36,17 +36,19 @@ ggplot() +
   theme_void() + 
   theme(plot.background = element_rect(fill = "pink", color = "pink"))
 
-ggsave("visualization/grid-pictures-2.png", device = "png", dpi = "print")
+ggsave("visualization/grid-pictures/pic-2.png", device = "png", dpi = "print")
 
 colors <- sample(flatten_chr(wesanderson::wes_palettes), size = length(chunks), replace = TRUE)
 chunks_and_colors <- tibble(chunks, colors) %>% sf::st_as_sf()
 
 ggplot() + 
-  geom_sf(data = output, color = "white", size = 0.2) +
-  geom_sf(data = chunks_and_colors, aes(fill = colors), color = NA, show.legend = FALSE) +
+  geom_sf(data = chunks_and_colors, aes(fill = colors), 
+          color = NA, show.legend = FALSE) +
+  geom_sf(data = st_union(output), color = "white", size = 0.2, 
+          lineend = "round", linejoin = "bevel") +
   theme_void() + 
   theme(plot.background = element_rect(fill = "pink", color = "pink"))
 
-ggsave("visualization/grid-pictures-3.png", device = "png", dpi = "print")
+ggsave("visualization/grid-pictures/pic-3.png", device = "png", dpi = "retina")
 
 

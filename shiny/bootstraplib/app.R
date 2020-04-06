@@ -16,11 +16,7 @@
 #
 # Finally, I used this app to learn more about the bootstraplib package
 # https://rstudio.github.io/bootstraplib
-#
-# TO DO:
-# - ZOOM
-# - BOOTSTRAPLIB
-# - DT aesthetics
+
 
 # Packages
 
@@ -32,6 +28,34 @@ library(DT)
 # Custom functions
 
 source("app_functions.R")
+
+# Bootstraplib ------------------------------------------------------------
+#
+# Type `run_with_themer()` in the console to choose these settings:
+
+library(bootstraplib)
+bs_theme_new(bootswatch = "lumen")
+
+bs_theme_add_variables(
+  primary = "#F3DCEC",
+  secondary = "#F3DCEC"
+)
+
+bs_theme_base_colors(bg = "#F3DCEC")
+
+shinyOptions(plot.autocolors = TRUE)   ## isn't working yet??
+shinyOptions(plot.autotheme = TRUE)  ### ARGH
+# This is a weird fix. Remove the later calls to cowplot::ggdraw() when
+# plot.autocolors works!
+
+# library(cowplot)
+# 
+# theme_custom <- function() {
+#   theme_void() %+replace% 
+#     theme(plot.background = element_rect(fill = "#F3DCEC", color = NA))
+# }
+
+
 
 # Data --------------------------------------------------------------------
 
@@ -45,8 +69,9 @@ state_map <- county_map %>%
   sf::st_as_sf()   #### not necessary in some versions of R (I think)
 
 county_usafacts_agg <- read_rds("data_clean/county_usafacts.rds") %>% 
+  filter(fips != 0) %>% 
   group_by(fips, state_fips) %>%
-  summarize(cases = sum(cases), deaths = sum(deaths))
+  summarize(cases = sum(cases), deaths = sum(deaths)) 
 
 county_usafacts <- county_map %>%
   full_join(county_usafacts_agg) %>%
@@ -59,6 +84,8 @@ county_usafacts_grid <- county_usafacts %>%
   unnest(cols = coords)
 
 ui <- fluidPage(
+  bootstraplib::bootstrap(),
+  
   headerPanel("COVID-19 Information by County", windowTitle = "covid-19 map"),
   
   sidebarLayout(
@@ -78,8 +105,9 @@ ui <- fluidPage(
       htmlOutput(outputId = "usafacts_map_hover_summary")
     ), 
     mainPanel(
-      plotOutput(outputId = "usafacts_map", hover = "usafacts_map_hover", brush = "usafacts_map_brush")
-    )  ## TO DO: ADD ZOOM, I THINK IT'S A DBL CLICK
+      plotOutput(outputId = "usafacts_map", #height = "400px", width = "400px",
+                 hover = "usafacts_map_hover", brush = "usafacts_map_brush", dblclick = "usafacts_map_dblclick")
+    )  
   ),
   
   # verbatimTextOutput("console"), ## I use this to glimpse into input objects
@@ -112,17 +140,36 @@ server <- function(input, output, session) {
     
   })
   
+  ranges <- reactiveValues(x = NULL, y = NULL) ## initialize zoom
+  
   output$usafacts_map <- renderPlot({
     
     if (input$style == "dots") {
-      return(gg_dots(usafacts_map_data(), state_map, input$variable))
+      output <- gg_dots(usafacts_map_data(), state_map, input$variable)
     }
 
     if (input$style == "choropleth") {
-      return(gg_choropleth(usafacts_map_data(), state_map, input$variable))
+      output <- gg_choropleth(usafacts_map_data(), state_map, input$variable)
     }
     
+    output +                                                       ## remove this when no longer necessary
+      coord_sf(xlim = ranges$x, ylim = ranges$y, expand = FALSE) + ## this controls dblclick + zoom
+      theme_void()                                               ## this fixes the backround color issue
   })
+  
+  # When a double-click happens, check if there's a brush on the plot.
+  # If so, zoom to the brush bounds; if not, reset the zoom.
+  observeEvent(input$usafacts_map_dblclick, {
+    brush <- input$usafacts_map_brush
+    if (!is.null(brush)) {
+      ranges$x <- c(brush$xmin, brush$xmax)
+      ranges$y <- c(brush$ymin, brush$ymax)
+    } else {
+      ranges$x <- NULL
+      ranges$y <- NULL
+    }
+  })
+  
   
   output$usafacts_map_hover_summary <- renderUI({
     
@@ -174,11 +221,17 @@ server <- function(input, output, session) {
       as.data.frame() %>% 
       inner_join(county_usafacts_filtered()) %>% 
       select(name, state, pop_total, miles_squared, cases, deaths) %>% 
-      DT::datatable(rownames = FALSE)
-    ## TO DO: add pretty things here
+      arrange(desc(deaths, cases)) %>% 
+      DT::datatable(rownames = FALSE, 
+                    colnames = c("County", "State", "Population", "Square Miles", "Cases", "Deaths"), 
+                    options = list(list(4, 'desc'), list(5, 'desc'))) %>% 
+      DT::formatRound(c("pop_total", "cases", "deaths"), digits = 0) %>% 
+      DT::formatRound(c("miles_squared"), digits = 2) 
     
   })
   
 }
 
 shinyApp(ui, server)
+
+
