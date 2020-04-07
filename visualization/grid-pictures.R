@@ -49,6 +49,7 @@ ggplot() +
   theme_void() + 
   theme(plot.background = element_rect(fill = "pink", color = "pink"))
 
-ggsave("visualization/grid-pictures/pic-3.png", device = "png", dpi = "retina")
+ggsave("visualization/grid-pictures/pic-3.png", device = "png", dpi = 400, 
+       bg = "pink") ## hidden ... argument
 
 
