@@ -27,11 +27,8 @@ ggsave("visualization/spiral-pictures/pic-1.png", device = "png", dpi = "print",
 
 rotate <- function(a) matrix(c(cos(a), sin(a), -sin(a), cos(a)), 2, 2)
 
-spiral <- function(sf_obj, ..., d = 0.1) {
-  
-  ## The idea is to rotate, shrink, and then raise the original square
-  stopifnot(class(sf_obj) == c("XY", "POLYGON", "sfg"))
-  ## This function will only work with sf objects
+rotate_shrink_push <- function(sf_obj, ..., d = 0.1) {
+  stopifnot(class(sf_obj) == c("XY", "POLYGON", "sfg")) ## This function will only work with sf objects
   angle <- pi/2 - acos(d / (1-d))  ## this angle will only work with 1 x 1 squares
   
   rotated_obj <- sf_obj * rotate(angle)  
@@ -42,7 +39,7 @@ spiral <- function(sf_obj, ..., d = 0.1) {
 
 sf_square <- st_polygon(list(square))
 
-output <- accumulate(1:200, spiral, .init = sf_square, d = 1/30) %>% 
+output <- accumulate(1:200, rotate_shrink_push, .init = sf_square, d = 1/30) %>% 
   st_polygon() 
 
 output %>% 
@@ -75,7 +72,7 @@ accumulate(1:30, tri_shift, .init = triangle, d = 1/30) %>%
   theme_void() + 
   theme(plot.background = element_rect(fill = "#FFBA61", color = NA)) 
 
-ggsave("visualization/spiral-pictures/pic-4.png", device = "png", dpi = "print", bg = "antiquewhite")
+ggsave("visualization/spiral-pictures/pic-4.png", device = "png", dpi = "print", bg = "#FFBA61")
 
 
 # Final attempt -----------------------------------------------------------
@@ -93,7 +90,7 @@ reduce(1:300, next_row, .init = triangle) %>%
   theme_void() + 
   theme(plot.background = element_rect(fill = "antiquewhite", color = NA))
 
-reduce(1:300, next_row, .init = square) %>% 
+reduce(1:500, next_row, .init = square, fraction = 0.05) %>% 
   list() %>% 
   st_multilinestring() %>% 
   ggplot() + 
@@ -139,8 +136,3 @@ map(polygons, spiral, fraction = 0.05, N = 500) %>%
   theme(plot.background = element_rect(fill = "antiquewhite", color = NA))
 
 ggsave("visualization/spiral-pictures/pic-7.png", device = "png", dpi = "print", bg = "antiquewhite")
-
-
-
-    
-  
