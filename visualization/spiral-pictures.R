@@ -27,19 +27,17 @@ ggsave("visualization/spiral-pictures/pic-1.png", device = "png", dpi = "print",
 
 rotate <- function(a) matrix(c(cos(a), sin(a), -sin(a), cos(a)), 2, 2)
 
-rotate_shrink_push <- function(sf_obj, ..., d = 0.1) {
-  stopifnot(class(sf_obj) == c("XY", "POLYGON", "sfg")) ## This function will only work with sf objects
-  angle <- pi/2 - acos(d / (1-d))  ## this angle will only work with 1 x 1 squares
+rotate_shrink_push <- function(M, ..., d = 0.1) {
   
-  rotated_obj <- sf_obj * rotate(angle)  
-  shrunk_obj <- rotated_obj * sqrt(2*d^2 - 2*d + 1)
-  shrunk_obj + c(0, d)
+  angle <- pi/2 - acos(d / (1 - d))  ## this angle will only work with 1 x 1 squares
   
+  M <- M %*% rotate(angle)  ## rotate
+  M <- M * sqrt(2*d^2 - 2*d + 1) ## shrink
+  M <- M + matrix(rep(c(0, d), nrow(M)), ncol = 2, byrow = TRUE)  ## push
+  return(M)
 }
 
-sf_square <- st_polygon(list(square))
-
-output <- accumulate(1:200, rotate_shrink_push, .init = sf_square, d = 1/30) %>% 
+output <- accumulate(1:200, rotate_shrink_push, .init = square, d = 1/30) %>% 
   st_polygon() 
 
 output %>% 
@@ -118,7 +116,7 @@ spiral <- function(x, N = 300, ...) {
   reduce(1:N, next_row, .init = x, ...) 
 }
 
-map(polygons, spiral, fraction = 0.05, N = 500) %>% 
+map(polygons, spiral, fraction = 0.08, N = 500) %>% 
   st_multilinestring() %>% 
   ggplot() + 
   geom_sf(color = "steelblue", size = 0.2) + 
@@ -136,3 +134,57 @@ map(polygons, spiral, fraction = 0.05, N = 500) %>%
   theme(plot.background = element_rect(fill = "antiquewhite", color = NA))
 
 ggsave("visualization/spiral-pictures/pic-7.png", device = "png", dpi = "print", bg = "antiquewhite")
+
+
+# Composition -------------------------------------------------------------
+
+a <- spiral(square, N = 500, fraction = 0.08) %>% 
+  list() %>% 
+  st_multilinestring() %>% 
+  ggplot() 
+
+b <- list(triangle, rbind(c(0, 1), c(1, 1), c(1, 0), c(0, 1))) %>% 
+  map(spiral) %>% 
+  st_multilinestring() %>% 
+  ggplot() 
+
+c <- map(polygons, spiral, fraction = 0.08, N = 500) %>% 
+  st_multilinestring() %>% 
+  ggplot() 
+
+rad <- function(degree) degree / 360 * 2 * pi
+
+enclosing_square <- rbind(c(-1, -1), c(-1, 1.366025), c(1.366025, 1.366025), c(1.366025, -1), c(-1, -1))  %>% 
+  list() %>% 
+  st_polygon() 
+
+d <- c(0, seq(-90, 90, 30), 180, 270) %>% 
+  map(~ square %*% rotate(rad(.))) %>% 
+  map(spiral, fraction = .05, N = 500) %>% 
+  st_multilinestring() %>% 
+  ggplot() +
+  geom_sf(data = enclosing_square, fill = NA, color = "steelblue", size = 0.1) 
+
+composition <- a + b + c + d & 
+  geom_sf(color = "steelblue", size = 0.1) &
+  theme_void() &
+  theme(plot.background = element_rect(fill = "antiquewhite", color = "antiquewhite"))
+
+composition + plot_layout(design = "1234")
+
+ggsave("visualization/spiral-pictures/pic-8.png", device = "png", dpi = "print", bg = "antiquewhite")
+
+c(0, seq(-90, 60, 30), 180, 270) %>% 
+  map(~ square %*% rotate(rad(.))) %>% 
+  map(spiral, fraction = .05, N = 500) %>% 
+  append(enclosing_square) %>% 
+  st_multilinestring() %>% 
+  st_cast("MULTIPOLYGON") %>% 
+  ggplot() +
+  geom_sf(data = enclosing_square, fill = NA, color = "steelblue", size = 1) +
+  geom_sf(fill = "steelblue", size = 0.1, color = NA) +
+  theme_void() +
+  theme(plot.background = element_rect(fill = "antiquewhite", color = "antiquewhite"))
+
+ggsave("visualization/spiral-pictures/pic-9.png", device = "png", dpi = "print", bg = "antiquewhite")
+
