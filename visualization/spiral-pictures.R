@@ -2,9 +2,8 @@
 # Source of inspiration: https://infrahumano.github.io/exterior/2020/04/18/mediod%C3%ADa.html
 #                        https://youtu.be/C2vbYpa-AWk
 
+library(tidyverse)
 library(sf)
-library(ggplot2)
-library(purrr)
 
 if (!dir.exists("visualization/spiral-pictures/")) dir.create("visualization/spiral-pictures/")
 
@@ -23,8 +22,6 @@ accumulate(1:100, shift, .init = square, d = 0.01) %>%
   theme(plot.background = element_rect(fill = "pink", color = NA))
 
 ggsave("visualization/spiral-pictures/pic-1.png", device = "png", dpi = "print", bg = "pink")
-
-
 
 # Second attempt ----------------------------------------------------------
 
@@ -60,6 +57,90 @@ output %>%
   ggplot() + 
   geom_sf(fill = "steelblue", size = 0.2, color = NA) + 
   theme_void() + 
-  theme(plot.background = element_rect(fill = "pink", color = NA))
+  theme(plot.background = element_rect(fill = "antiquewhite", color = NA))
 
-ggsave("visualization/spiral-pictures/pic-3.png", device = "png", dpi = "print", bg = "pink")
+ggsave("visualization/spiral-pictures/pic-3.png", device = "png", dpi = "print", bg = "antiquewhite")
+
+
+# Third attempt -----------------------------------------------------------
+
+triangle <- rbind(c(0, 0), c(0, 1),  c(1, 0), c(0, 0))
+
+tri_shift <- function(x, ..., d = 0.1) x + rbind(c(0, d), c(d, 0), c(-d, 0), c(0, d))
+
+accumulate(1:30, tri_shift, .init = triangle, d = 1/30) %>% 
+  st_polygon() %>%
+  ggplot() + 
+  geom_sf(fill = "#0E75AD", color = "white", size = 1/10) + 
+  theme_void() + 
+  theme(plot.background = element_rect(fill = "#FFBA61", color = NA)) 
+
+ggsave("visualization/spiral-pictures/pic-4.png", device = "png", dpi = "print", bg = "antiquewhite")
+
+
+# Final attempt -----------------------------------------------------------
+
+next_row <- function(M, ..., fraction = 0.1) {
+  i <- nrow(M)
+  rbind(M, M[i - 3, ] + (M[i - 2, ] - M[i - 3, ]) * fraction)
+}
+
+reduce(1:300, next_row, .init = triangle) %>% 
+  list() %>% 
+  st_multilinestring() %>% 
+  ggplot() + 
+  geom_sf(size = 0.2, color = "black") + 
+  theme_void() + 
+  theme(plot.background = element_rect(fill = "antiquewhite", color = NA))
+
+reduce(1:300, next_row, .init = square) %>% 
+  list() %>% 
+  st_multilinestring() %>% 
+  ggplot() + 
+  geom_sf(size = 0.2, color = "black") + 
+  theme_void() + 
+  theme(plot.background = element_rect(fill = "antiquewhite", color = NA))
+
+ggsave("visualization/spiral-pictures/pic-5.png", device = "png", dpi = "print", bg = "antiquewhite")
+
+
+## This is the same pattern from Javier's blog:
+
+polygons <- list(
+  rbind(c(0, 0), c(0, 500), c(250, 450), c(0, 0)),
+  rbind(c(0, 500), c(250, 450), c(0, 1000), c(0, 500)), 
+  rbind(c(0, 0), c(250, 450), c(600, 0), c(0, 0)),
+  rbind(c(250, 450), c(0, 1000), c(500, 1000), c(500, 750), c(250, 450)),
+  rbind(c(600, 0), c(250, 450), c(500, 750), c(800, 350), c(600, 0)),
+  rbind(c(600, 0), c(800, 350), c(1000, 250), c(1000, 0), c(600, 0)),
+  rbind(c(500, 750), c(800, 350), c(1000, 250), c(1000, 1000), c(500, 750)),
+  rbind(c(500, 750), c(1000, 1000), c(500, 1000), c(500, 750))
+)
+
+spiral <- function(x, N = 300, ...) {
+  reduce(1:N, next_row, .init = x, ...) 
+}
+
+map(polygons, spiral, fraction = 0.05, N = 500) %>% 
+  st_multilinestring() %>% 
+  ggplot() + 
+  geom_sf(color = "steelblue", size = 0.2) + 
+  theme_void() + 
+  theme(plot.background = element_rect(fill = "antiquewhite", color = NA))
+
+ggsave("visualization/spiral-pictures/pic-6.png", device = "png", dpi = "print", bg = "antiquewhite")
+
+map(polygons, spiral, fraction = 0.05, N = 500) %>% 
+  st_multilinestring() %>% 
+  st_cast("MULTIPOLYGON") %>% 
+  ggplot() + 
+  geom_sf(fill = "steelblue", size = NA) + 
+  theme_void() + 
+  theme(plot.background = element_rect(fill = "antiquewhite", color = NA))
+
+ggsave("visualization/spiral-pictures/pic-7.png", device = "png", dpi = "print", bg = "antiquewhite")
+
+
+
+    
+  
