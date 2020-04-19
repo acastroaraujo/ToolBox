@@ -158,10 +158,19 @@ enclosing_square <- rbind(c(-1, -1), c(-1, 1.366025), c(1.366025, 1.366025), c(1
   list() %>% 
   st_polygon() 
 
-d <- c(0, seq(-90, 90, 30), 180, 270) %>% 
+output <-  c(0, seq(-90, 90, 30), 180, 270) %>% 
   map(~ square %*% rotate(rad(.))) %>% 
   map(spiral, fraction = .05, N = 500) %>% 
-  st_multilinestring() %>% 
+  st_multilinestring() 
+
+upper <- output %>% unlist() %>% max()
+lower <- output %>% unlist() %>% min()
+
+enclosing_square <- rbind(c(lower, lower), c(lower, upper), c(upper, upper), c(upper, lower), c(lower, lower))  %>% 
+  list() %>% 
+  st_polygon() 
+
+d <- output %>% 
   ggplot() +
   geom_sf(data = enclosing_square, fill = NA, color = "steelblue", size = 0.1) 
 
