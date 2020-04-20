@@ -8,6 +8,12 @@ library(sf)
 if (!dir.exists("visualization/spiral-pictures/")) dir.create("visualization/spiral-pictures/")
 
 
+# General functions --------------------------------------------------------
+
+rotate <- function(a) matrix(c(cos(a), sin(a), -sin(a), cos(a)), 2, 2)
+rad <- function(degree) degree / 360 * 2 * pi
+
+
 # First attempt -----------------------------------------------------------
 
 square <- rbind(c(0, 0), c(0, 1), c(1, 1), c(1, 0), c(0, 0))
@@ -24,8 +30,6 @@ accumulate(1:100, shift, .init = square, d = 0.01) %>%
 ggsave("visualization/spiral-pictures/pic-1.png", device = "png", dpi = "print", bg = "pink")
 
 # Second attempt ----------------------------------------------------------
-
-rotate <- function(a) matrix(c(cos(a), sin(a), -sin(a), cos(a)), 2, 2)
 
 rotate_shrink_push <- function(M, ..., d = 0.1) {
   
@@ -63,10 +67,17 @@ triangle <- rbind(c(0, 0), c(0, 1),  c(1, 0), c(0, 0))
 
 tri_shift <- function(x, ..., d = 0.1) x + rbind(c(0, d), c(d, 0), c(-d, 0), c(0, d))
 
-accumulate(1:30, tri_shift, .init = triangle, d = 1/30) %>% 
-  st_polygon() %>%
+o1 <- accumulate(1:30, tri_shift, .init = triangle, d = 1/30)
+
+o2 <- accumulate(1:30, tri_shift, .init = triangle, d = 1/30) %>% 
+  map(~ . %*% rbind(c(-1, 0), c(0, 1))) %>% 
+  map(~ . + rbind(c(1, 0), c(1, 0), c(1, 0), c(1, 0)))
+
+c(o1,  o2) %>%  
+  st_multilinestring() %>% 
+  st_cast("MULTIPOLYGON") %>% 
   ggplot() + 
-  geom_sf(fill = "#0E75AD", color = "white", size = 1/10) + 
+  geom_sf(fill = "#0E75AD", color = "white", size = 1/20) +
   theme_void() + 
   theme(plot.background = element_rect(fill = "#FFBA61", color = NA)) 
 
@@ -80,7 +91,11 @@ next_row <- function(M, ..., fraction = 0.1) {
   rbind(M, M[i - 3, ] + (M[i - 2, ] - M[i - 3, ]) * fraction)
 }
 
-reduce(1:300, next_row, .init = triangle) %>% 
+spiral <- function(x, N = 300, ...) {
+  reduce(1:N, next_row, .init = x, ...) 
+}
+
+spiral(triangle)
   list() %>% 
   st_multilinestring() %>% 
   ggplot() + 
@@ -88,7 +103,7 @@ reduce(1:300, next_row, .init = triangle) %>%
   theme_void() + 
   theme(plot.background = element_rect(fill = "antiquewhite", color = NA))
 
-reduce(1:500, next_row, .init = square, fraction = 0.05) %>% 
+spiral(square, N = 500, fraction = 0.05) %>% 
   list() %>% 
   st_multilinestring() %>% 
   ggplot() + 
@@ -112,10 +127,6 @@ polygons <- list(
   rbind(c(500, 750), c(1000, 1000), c(500, 1000), c(500, 750))
 )
 
-spiral <- function(x, N = 300, ...) {
-  reduce(1:N, next_row, .init = x, ...) 
-}
-
 map(polygons, spiral, fraction = 0.08, N = 500) %>% 
   st_multilinestring() %>% 
   ggplot() + 
@@ -138,6 +149,8 @@ ggsave("visualization/spiral-pictures/pic-7.png", device = "png", dpi = "print",
 
 # Composition -------------------------------------------------------------
 
+library(patchwork)
+
 a <- spiral(square, N = 500, fraction = 0.08) %>% 
   list() %>% 
   st_multilinestring() %>% 
@@ -151,12 +164,6 @@ b <- list(triangle, rbind(c(0, 1), c(1, 1), c(1, 0), c(0, 1))) %>%
 c <- map(polygons, spiral, fraction = 0.08, N = 500) %>% 
   st_multilinestring() %>% 
   ggplot() 
-
-rad <- function(degree) degree / 360 * 2 * pi
-
-enclosing_square <- rbind(c(-1, -1), c(-1, 1.366025), c(1.366025, 1.366025), c(1.366025, -1), c(-1, -1))  %>% 
-  list() %>% 
-  st_polygon() 
 
 output <-  c(0, seq(-90, 90, 30), 180, 270) %>% 
   map(~ square %*% rotate(rad(.))) %>% 
