@@ -20,7 +20,7 @@ garabato <- function(f, trazos, ..., seed = NULL) {
 custom_plot <- function(sf_obj) {
   sf_obj %>% 
     ggplot() + 
-    geom_sf(color = "steelblue", size = 0.5, alpha = 0.5, fill = "#fff89e") + 
+    geom_sf(color = "steelblue", size = 0.5, alpha = 0.5, fill = "#FDD103") + 
     theme_void(base_family = "Avenir Next Condensed") 
 }
 
@@ -39,11 +39,10 @@ c <- garabato(rnorm, 200, mean = c(rep(1, 100), rep(10, 100)), sd = 2, seed = 12
   custom_plot() +
   ggtitle("mixture of two normals")
 
-d <- garabato(rbinom, 200, size = 10, prob = 0.2, seed = 123) %>% 
+d <- garabato(runif, 200, min = log(1:100), max = 1:100) %>% 
   st_cast("MULTIPOLYGON") %>% 
   custom_plot() +
-  ggtitle("binomial distribution")
-
+  ggtitle("not exactly a\nuniform distribution")
 
 # Composition -------------------------------------------------------------
 
