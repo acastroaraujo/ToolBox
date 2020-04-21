@@ -20,7 +20,7 @@ garabato <- function(f, trazos, ..., seed = NULL) {
 custom_plot <- function(sf_obj) {
   sf_obj %>% 
     ggplot() + 
-    geom_sf(color = "steelblue", size = 0.5, alpha = 0.5, fill = "pink") + 
+    geom_sf(color = "steelblue", size = 0.5, alpha = 0.5, fill = "#fff89e") + 
     theme_void(base_family = "Avenir Next Condensed") 
 }
 
