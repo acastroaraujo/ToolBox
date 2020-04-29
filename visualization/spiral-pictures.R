@@ -86,16 +86,16 @@ ggsave("visualization/spiral-pictures/pic-4.png", device = "png", dpi = "print",
 
 # Final attempt -----------------------------------------------------------
 
-next_row <- function(M, ..., fraction = 0.1) {
+next_row <- function(M, fraction = 0.1, ...) {
   i <- nrow(M)
   rbind(M, M[i - 3, ] + (M[i - 2, ] - M[i - 3, ]) * fraction)
 }
 
-spiral <- function(x, N = 300, ...) {
-  reduce(1:N, next_row, .init = x, ...) 
+spiral <- function(x, N = 300, fraction = 0.1) {
+  reduce(1:N, next_row, .init = x, fraction = fraction) 
 }
 
-spiral(triangle)
+spiral(triangle) %>% 
   list() %>% 
   st_multilinestring() %>% 
   ggplot() + 
@@ -204,3 +204,43 @@ c(0, seq(-90, 60, 30), 180, 270) %>%
 
 ggsave("visualization/spiral-pictures/pic-9.png", device = "png", dpi = "print", bg = "antiquewhite")
 
+
+# Voronoi Tessellation ----------------------------------------------------
+
+set.seed(12345)
+random_points <- runif(1e3) %>% 
+  matrix(ncol = 2) %>% 
+  st_multipoint() 
+  
+hull <- st_convex_hull(random_points)
+
+v <- st_voronoi(random_points) %>% 
+  st_collection_extract() %>% 
+  st_sf()
+  
+st_intersection(v, hull) %>% 
+  st_geometry() %>% 
+  map(as.matrix) %>% 
+  map(spiral, fraction = 1/10, N = 300) %>% 
+  st_multilinestring() %>% 
+  st_cast("MULTIPOLYGON")  %>% 
+  ggplot() + 
+  geom_sf(size = NA, color = "antiquewhite", fill = "steelblue") + 
+  theme_void() +
+  theme(plot.background = element_rect(fill = "antiquewhite", color = "antiquewhite"))
+
+ggsave("visualization/spiral-pictures/pic-10.png", device = "png", dpi = "print", 
+       bg = "antiquewhite")
+
+st_intersection(v, hull) %>% 
+  st_geometry() %>% 
+  map(as.matrix) %>% 
+  map(spiral, fraction = 1/10, N = 200) %>% 
+  st_multilinestring() %>% 
+  ggplot() + 
+  geom_sf(size = 0.1, color = "black") + 
+  theme_void() +
+  theme(plot.background = element_rect(fill = "antiquewhite", color = "black"))
+
+ggsave("visualization/spiral-pictures/pic-11.png", device = "png", dpi = "print", 
+       bg = "antiquewhite")
