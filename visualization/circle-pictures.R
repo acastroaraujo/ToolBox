@@ -35,7 +35,7 @@ draw_circle_mandala <- function(circle, i = 3, s = 1) {
 
 # example -----------------------------------------------------------------
 
-draw_circle_mandala(circle, 3, 1)
+draw_circle_mandala(circle, i = 3, s = 1)
 ggsave("visualization/circle-pictures/circle-mandala.png", device = "png", dpi = "print", bg = "antiquewhite")
 
 # temporary directory -----------------------------------------------------
@@ -51,10 +51,11 @@ i_seq <- c(seq(3, 30, 1), seq(29, 3.5, -1))
 gg_list1 <- map(s_seq, draw_circle_mandala, circle = circle, i = 3)
 gg_list2 <- map(i_seq, draw_circle_mandala, circle = circle, s = 1) 
 
-# gif ---------------------------------------------------------------------
+# gifs --------------------------------------------------------------------
 
 paths1 <- file.path(temp, paste0("pic-", seq_along(gg_list1), ".png"))
-walk2(paths1, gg_list1, ggsave, device = "png", dpi = "print", bg = "antiquewhite")
+walk2(paths1, gg_list1, ggsave, device = "png", bg = "antiquewhite", 
+      width = 5, height = 5)
 
 library(magick)  
 
@@ -65,7 +66,8 @@ paths1 %>%
   image_write("visualization/circle-pictures/circle-mandala-1.gif")
 
 paths2 <- file.path(temp, paste0("pic-", seq_along(gg_list2), ".png"))
-walk2(paths2, gg_list2, ggsave, device = "png", dpi = "print", bg = "antiquewhite")
+walk2(paths2, gg_list2, ggsave, device = "png", bg = "antiquewhite", 
+      width = 5, height = 5)
 
 paths2 %>% 
   map(image_read) %>% 
