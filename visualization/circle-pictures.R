@@ -8,6 +8,8 @@ circle <- st_buffer(st_point(c(0, 0)), 10)
 
 mandala <- function(circle, i = 2, s = 1) {
   
+  if (i %% 1 != 0 | i <= 0) stop("i must be a positive <<integer>>", call. = FALSE)
+  
   many_circles <- circle %>% 
     st_sfc() %>% 
     st_cast("POINT") %>%
@@ -45,8 +47,8 @@ dir.create(temp)
 
 # sequence of plots -------------------------------------------------------
 
-s_seq <- c(seq(1, 14, 0.5), seq(13.5, 1.2, -0.5))
-i_seq <- c(seq(3, 30, 1), seq(29, 3.5, -1))
+s_seq <- c(seq(1, 14, 0.5), seq(13.5, 1.5, -0.5))
+i_seq <- c(seq(3, 30, 1), seq(29, 3, -1))
 
 gg_list1 <- map(s_seq, draw_circle_mandala, circle = circle, i = 3)
 gg_list2 <- map(i_seq, draw_circle_mandala, circle = circle, s = 1) 
@@ -74,3 +76,20 @@ paths2 %>%
   image_join() %>% 
   image_animate(fps = 5) %>%
   image_write("visualization/circle-pictures/circle-mandala-2.gif")
+
+i_seq <- c(seq(1, 20, 1), seq(20, 1, -1))
+s_seq <- c(seq(1, 0.5, length = 20), seq(0.5, 1, length = 20))
+
+gg_list3 <- map2(i_seq, s_seq, draw_circle_mandala, circle = circle)
+
+paths3 <- file.path(temp, paste0("pic-", seq_along(gg_list3), ".png"))
+walk2(paths3, gg_list3, ggsave, device = "png", bg = "antiquewhite", 
+      width = 5, height = 5)
+
+paths3 %>% 
+  map(image_read) %>% 
+  image_join() %>% 
+  image_animate(fps = 5) %>%
+  image_write("visualization/circle-pictures/circle-mandala-3.gif")
+
+
