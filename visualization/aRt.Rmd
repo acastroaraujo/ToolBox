@@ -1,0 +1,283 @@
+---
+title: "making aRt"
+author: "andrés castro araújo"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: paper
+    toc: yes
+    toc_float: 
+      collapsed: no
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "", fig.align = "center")
+```
+
+```{css, echo=FALSE}
+blockquote {
+    padding: 10px 20px;
+    margin: 0 0 20px;
+    font-size: 12px;
+    color: #828282;
+    border-left: 10px solid #EEE;
+}
+
+body {
+  font-size: 14px;
+}
+```
+
+```{r}
+outfolder <- "aRt-pictures/"
+if (!dir.exists(outfolder)) dir.create(outfolder)
+```
+
+This notebook follows Danielle Navarro's [approach](https://djnavarro.net/post/unpredictable-paintings/) which consists in creating two separate pieces of code: 
+
+1. a data structure 
+
+2. a set of instructions that renders an image.
+
+We will also rely on two special packages:
+
+- [__ambient__](https://CRAN.R-project.org/package=ambient): A Generator of Multidimensional Noise
+
+- [__scico__](https://CRAN.R-project.org/package=scico): Colour Palettes Based on the Scientific Colour-Maps
+
+The last two sections are heavily indebted to Antonio Sánchez Chinchón's [blogposts](https://fronkonstin.com/).
+
+```{r, message=FALSE}
+library(tidyverse)
+library(ambient)
+library(scico)
+```
+
+## hello world
+
+This example is taken from [here](https://www.youtube.com/playlist?list=PLRPB0ZzEYegNYW3ksiK3dvd6S4HMfKj1n).
+
+___the data structure___
+
+```{r}
+art_param <- list(
+  seed = 12345,
+  n_paths = 800,
+  n_steps = 100,
+  shift = 50,
+  curl = 200
+)
+
+set.seed(art_param$seed)
+
+state <- tibble(
+  x = runif(n = art_param$n_paths, min = 0, max = 2),
+  y = runif(n = art_param$n_paths, min = 0, max = 2),
+  z = 0,
+  path_id = 1:art_param$n_paths,
+  step_id = 1
+  ) 
+
+modify_state <- function(state, ...) {
+  
+  step <- ambient::curl_noise(
+    generator = gen_simplex,
+    x = state$x,
+    y = state$y,
+    z = state$z,
+    seed = rep(art_param$seed, 3)
+    )
+  
+  state %>% 
+    mutate(
+      x = x + step$x / art_param$shift,
+      y = y + step$y / art_param$shift,
+      z = z + step$z / art_param$curl,
+      step_id = step_id + 1
+    )
+}
+
+output <- accumulate(1:art_param$n_steps, modify_state, .init = state)
+```
+
+___the image___
+
+```{r}
+# see available colors with scico_palette_show()
+
+bind_rows(output) %>% 
+  ggplot(aes(x, y, group = path_id, color = step_id)) + 
+  geom_path(alpha = 1/2, size = 1/5, show.legend = FALSE) +
+  scale_color_scico(palette = "lajolla") +
+  theme_void() + 
+  theme(plot.background = element_rect(fill = "antiquewhite", color = "antiquewhite"))
+
+ggsave(
+  filename = str_glue("{outfolder}hello_world.png"), 
+  device = "png", 
+  dpi = "print", 
+  bg = "antiquewhite"
+)
+```
+
+Usually, you'll want the file's name to be programatic as well, for example:
+
+```{r}
+art_param %>% 
+  paste(collapse = "-") %>% 
+  paste0(".png", collapse = "")
+```
+
+This way, we can easily reproduce random pictures by plugging in the right parameters.
+
+## ashtree
+
+This example develops a "functional programming" style for generating pictures. It's taken from [here](https://www.youtube.com/playlist?list=PLRPB0ZzEYegPHHji3tBw2U4yp-DxMrUkB).
+
+We'll need to divide our script into two parts:
+
+_Helper functions that help solve common tasks in a clean way._
+
+```{r}
+radians <- function(degree) {
+  2 * pi * degree / 360
+}
+
+change_size <- function(size) {
+  a <- rbeta(length(size), 10, 2)
+  a * size
+}
+
+change_angle <- function(theta) {
+  a <- runif(length(theta), min = -20, max = 20)
+  a + theta
+}
+
+change_x <- function(x, size, angle) {
+ x + size * cos(radians(angle)) 
+}
+
+change_y <- function(y, size, angle) {
+  y + size * sin(radians(angle)) 
+}
+```
+
+_Worker functions that build and draw the data structure._
+
+```{r}
+grow_from <- function(tree) {
+  
+  tree %>% 
+    mutate(
+      x_parent = x_child,
+      y_parent = y_child,
+      angle = change_angle(angle),
+      size = change_size(size),
+      x_child = change_x(x_parent, size, angle),
+      y_child =  change_y(y_parent, size, angle),
+      cycle = cycle + 1
+    )
+  
+}
+
+grow_multi <- function(tips, ...) {
+
+    map_dfr(1:2, ~ grow_from(tips))
+  
+}
+
+
+grow_tree <- function(trunk, param) {
+  
+  if (!is.null(param$seed)) set.seed(param$seed)
+  bind_rows(accumulate(1:param$n, grow_multi, .init = trunk))
+  
+}
+
+draw <- function(tree) {
+  
+  tree %>% 
+    ggplot(
+      mapping = aes(
+        x = x_parent, 
+        y = y_parent,
+        xend = x_child, 
+        yend = y_child
+        )) + 
+    geom_segment(alpha = 1/4) + 
+    coord_equal() + 
+    theme_void()
+  
+}
+
+trunk <- tibble(
+  x_parent = 0,
+  y_parent = 0,
+  x_child = 0,
+  y_child = 1,
+  size = 1,
+  cycle = 1,
+  angle = 90
+)
+
+
+param <- list(n = 12, seed = 123)
+tree <- grow_tree(trunk, param)
+
+draw(tree)
+```
+
+This doesn't look exactly like a tree, because branches tend to start wide and grow thiner as they grow. What we'll do is track the `cycle` number and apply some form of exponential decay to the width. 
+
+$$
+w(t) = a \exp(kt), \hspace{0.5cm} k < 0
+$$
+
+```{r}
+create_width <- function(t, k = -0.5) 1 * exp(k * t)
+
+tree %>% 
+  mutate(width = create_width(cycle)) %>% 
+  draw() + 
+  geom_segment(aes(size = width, alpha = width), show.legend = FALSE) +
+  scale_alpha(range = c(0.01, 1/3))
+
+tree %>% 
+  mutate(width = create_width(cycle)) %>% 
+  draw() + geom_segment(aes(alpha = width), show.legend = FALSE)
+```
+
+There's one obvious way to push this system further. A lot of the parameters are arbitrary (i.e. number of branches at each split, behavior of angles, behavior of sizes). We can gain more control over this by expanding the `param` list.
+
+To finish, I'm going to use one more `purrr` function in conjunction with the [gganimate](https://gganimate.com/articles/gganimate.html) package.
+
+```{r}
+num_trees <- 30
+param <- list(n = 12)
+output <- rerun(num_trees, grow_tree(trunk, param))
+
+for (i in seq_along(output)) {
+  output[[i]]$tree <- i
+}
+
+library(gganimate)
+
+mp <- bind_rows(output) %>% 
+  draw() + 
+  transition_time(tree) +
+  enter_fade() +
+  exit_fade()
+
+animate(mp, nframes = num_trees * 4)
+anim_save(str_glue("{outfolder}burning-bush.gif"))
+```
+
+## strange attractors
+
+This example uses strange attractors and introduces `Rccp` as a way to speed up iteration.
+
+https://codingclubuc3m.rbind.io/post/2019-10-15/
+
+
+## fractals
+
