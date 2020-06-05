@@ -1,0 +1,107 @@
+---
+title: "<strong>word embeddings</strong>"
+author: "andrés castro araújo"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    code_folding: show
+    theme: paper
+    toc: yes
+    toc_float:
+      collapsed: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "", fig.align = "center",
+                      fig.width = 5, fig.height = 3)
+
+library(tidyverse)
+theme_set(
+    theme_light(base_family = "Avenir Next Condensed", base_line_size = 0) +
+    theme(plot.title = element_text(face = "bold"))
+  )
+```
+
+
+```{css, echo=FALSE}
+blockquote {
+    padding: 10px 20px;
+    margin: 0 0 20px;
+    font-size: 12px;
+    color: #828282;
+    border-left: 14px solid #EEE;
+}
+```
+
+****
+
+Simple Resources: 
+
+- Selivanov's [__text2vec__](http://text2vec.org/) package.
+
+- Chollet's [__keras__](https://keras.rstudio.com/) package (e.g. [here]((https://blogs.rstudio.com/ai/posts/2017-12-22-word-embeddings-with-keras/))
+
+## introduction
+
+> You shall know a word by the company it keeps. 
+>
+> — John R. Firth
+
+> The length of this vector corresponds to the nature and complexity of the multidimensional space in which we are seeking to “embed” the word. And the promise of these techniques is also simple: distances between such vectors are informative about the semantic similarity of the underlying concepts they connote for the corpus on which they were built.
+
+>Word embedding algorithms input large collections of digitized text and output a high-dimensional vector-space model in which each unique word is represented as a vector in the space.
+
+>Words are positioned in this space based on their surrounding “context” words in the text, such that words sharing many contexts are positioned near one another, and words that inhabit different linguistic contexts are located farther apart
+
+
+words as vectors in a dense, continuous, high-dimensional space; compare with words as topical clusters.
+
+
+
+Word embedding models are naïve as to what words signify, lacking intrinsic word referents. They position words relative to one another based purely on how they are used in relation to one another. 
+
+
+
+__Local word associations.__
+
+Note that because the optimal distance between two vectors is a function of shared context rather than strict co-occurrence, words need not co-occur for their vectors to be positioned close together. If “doctor” and “lawyer” both appear near the word “work” or “office,” then the vectors for “doctor” and “lawyer” would be located near each other in the embedding, even if they never appear together in text.
+
+
+
+word2vec initially attracted a great deal of attention by virtue of its intriguing ability to solve analogy problems by applying simple linear algebra to word vectors
+
+Example: 
+
+$$
+\overrightarrow{\text{king}} - \overrightarrow{\text{man}} + \overrightarrow{\text{woman}} = \overrightarrow{\text{queen}}
+$$
+
+$$
+\overrightarrow{\text{waiter}} - \overrightarrow{\text{man}} + \overrightarrow{\text{woman}} = \overrightarrow{\text{waitress}}
+$$
+
+Key hyperparameters:
+
+- window-size, in order to calculate _skipgram_ probabilities
+
+- embedding dimension
+
+Examples of modern word embedding algorithms:
+
+- word2vec
+
+- gloVe
+
+- fastText
+
+In what follows, I'll demonstrate how to fit word embeddings using two common packages: __text2vec__ and __keras__.
+
+## text2vec
+
+
+## keras
+
+## pre-trained embeddings
+
+
+
