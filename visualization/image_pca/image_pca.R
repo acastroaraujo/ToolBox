@@ -50,7 +50,7 @@ dir.create(temp)
 
 # sequence of plots -------------------------------------------------------
 
-index <- c(1:29, seq(30, 200, 10), 300, 450, 650) 
+index <- c(1:29, seq(30, 200, 20), 300, 450, 650) 
 
 matrix_list <- map(index, reconstruct_matrix, pca_obj = pic_pca)
 plot_list <- map(matrix_list, plot_gray)  
