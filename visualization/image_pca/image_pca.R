@@ -10,7 +10,7 @@ library(jpeg)
 
 # Black and White ---------------------------------------------------------
 
-pic <- readJPEG("visualization/image_pca/dubois_black_and_white.jpeg")
+pic <- readJPEG("visualization/image_pca/dubois_black_and_white.jpg")
 pic_pca <- prcomp(pic, scale = TRUE, center = TRUE)
 
 reconstruct_matrix <- function(pca_obj, p) {
@@ -41,7 +41,7 @@ plot_gray <- function(df) {
   
 }
 
-reconstruct_matrix(pca_obj, 100) %>% plot_gray()
+reconstruct_matrix(pic_pca, 600) %>% plot_gray()
 
 # temporary directory -----------------------------------------------------
 
@@ -50,7 +50,7 @@ dir.create(temp)
 
 # sequence of plots -------------------------------------------------------
 
-index <- c(1:29, seq(30, 200, 10), 300, 400, 500) 
+index <- c(1:29, seq(30, 200, 10), 300, 450, 650) 
 
 matrix_list <- map(index, reconstruct_matrix, pca_obj = pic_pca)
 plot_list <- map(matrix_list, plot_gray)  
@@ -58,7 +58,7 @@ plot_list <- map(matrix_list, plot_gray)
 # gifs --------------------------------------------------------------------
 
 paths <- file.path(temp, paste0("pic-", seq_along(plot_list), ".png"))
-walk2(paths, plot_list, ggsave, device = "png", bg = "antiquewhite", width = 5, height = 5)
+walk2(paths, plot_list, ggsave, device = "png", bg = "antiquewhite", width = 5, height = 4)
 
 paths %>% 
   map(image_read) %>% 
