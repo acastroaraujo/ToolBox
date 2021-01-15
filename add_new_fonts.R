@@ -7,7 +7,10 @@ install.packages("extrafont")
 
 extrafont::font_import()  ## type y (this might take a while)
 
-ggplot(tibble(x = runif(100))) + 
+library(ggplot2)
+ggplot(data.frame(x = runif(1000))) + 
   geom_density(aes(x)) + 
-  theme_minimal(base_family = "Lobster") +
-  labs(title = "The lobster font\n") 
+  theme_minimal(base_family = "Amiri") +
+  labs(title = "The new font looks like this",
+       subtitle = "lorem ipsum\n") 
+

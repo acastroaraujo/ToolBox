@@ -1,0 +1,577 @@
+---
+title: "<strong>Metaprogramming</strong>"
+author: "andrés castro araújo"
+date: "`r format(Sys.Date(), '%b %d, %Y')`"
+output: 
+  html_document: 
+    theme: paper
+    toc: yes
+    toc_float:
+      collapsed: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = "", fig.align = "center")
+library(magrittr)
+```
+
+```{css, echo=FALSE}
+blockquote {
+    padding: 10px 20px;
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: #828282;
+    border-left: 10px solid #EEE;
+}
+
+body {
+    font-size: 14px;
+}
+```
+
+Metaprogramming _is the idea that code is data that can be inspected and modified programmatically._
+
+> This is a powerful idea; one that deeply influences much R code. At the most basic level, it allows you to do things like write `library(purrr)` instead of `library("purrr")` and enable `plot(x, sin(x))` to automatically label the axes with `x` and `sin(x)`. At a deeper level, it allows you to do things like use y ~ x1 + x2 to represent a model that predicts the value of y from x1 and x2, to translate `subset(df, x == y)` into `df[df$x == df$y, , drop = FALSE]`, and to use `dplyr::filter(db, is.na(x))` to generate the `SQL WHERE x IS NULL` when db is a remote database table.
+
+```{r}
+library(rlang)
+library(lobstr)
+```
+
+
+## Introduction
+
+__Code is data__
+
+Once you have captured an expression, you can inspect and modify it. Complex expressions behave much like lists. That means you can modify them using `[[` and `$`:
+
+```{r}
+f <- expr(f(x = 1, y = 2)) 
+f[[1]]  # The first element of the call is the function to be called, 
+f[[2]]  # which means the first argument is in the second position.
+f[[3]]
+
+# Add a new argument
+f$z <- 3
+f
+
+# Or remove an argument:
+f[[2]] <- NULL
+f
+```
+
+__Code is a tree__
+
+> To do more complex manipulation with expressions, you need to fully understand their structure. Behind the scenes, almost every programming language represents code as a tree, often called the abstract syntax tree, or AST for short. R is unusual in that you can actually inspect and manipulate this tree.
+
+```{r}
+lobstr::ast(f(a, "b"))
+ast(f1(f2(a, b), f3(1, f4(2))))
+ast(mean(1:10, na.rm = TRUE))
+ast(1 + 2 * 3)
+```
+
+__Code can generate code__
+
+```{r}
+a <- expr(x + x)
+b <- expr(y + y)
+
+expr(!!a / !!b)
+```
+
+> Notice that the output preserves the operator precedence so we get `(x + x) / (y + y)` not `x + x / y + y`. This is important, particularly if you’ve been wondering if it wouldn't be easier to just paste strings together.
+
+__Evaluation runs code__
+
+> Evaluating an expression requires an environment, which tells R what the symbols in the expression mean.
+
+__Customising evaluation with functions__
+
+WTF
+
+```{r}
+# string math
+```
+
+
+__Customising evaluation with functions__
+
+__Quosures__
+
+
+
+****
+
+Note. See sections 18.6.2 and 19.4.3 for working with _missing_ arguments (e.g. `arr[ , j, ]`).
+
+## Expressions
+
+The following code —which multiplies a variable `x` by 10 and saves the result to a new variable called `y`— doesn't work because we haven't defined a variable called `x`.
+
+```{r, error=TRUE}
+y <- x * 10
+```
+
+The `rlang::expr()` function captures the intent of the code without executing it. It returns an __expression__, an object that captures the structure of the code without evaluating it.
+
+```{r}
+z <- rlang::expr(y <- x * 10)
+z
+```
+
+You can then evaluate the expression with `base::eval()`.
+
+```{r}
+x <- 1
+eval(z)
+y
+```
+
+### ASTs
+
+Expressions are also known as __abstract syntax trees__ (ASTs) because of the code is hierarchical and can be represented as a tree. Understanding this tree structure is allows you to inspect and modify expressions with ease. 
+
+For example:
+
+```{r}
+lobstr::ast(f(g(1, 2), h(3, 4, i())))
+```
+
+Here, the branches of the tree are call objects, which represent function calls, and are drawn as rectangles. The first child (`f`) is the function that gets called; the second and subsequent children (`g`, and `h`) are the arguments to that function. Note that `i()` —a function call with no arguments— is represented as a branch with a single leaf (symbol).
+
+___Exercises___
+
+_Reconstruct the code represented by the trees below:_
+
+```{r}
+# █─`*` 
+# ├─█─`(` 
+# │ └─█─`+` 
+# │   ├─x 
+# │   └─y 
+# └─z 
+
+# █─`+` 
+# ├─█─`+` 
+# │ ├─1 
+# │ └─2 
+# └─3 
+```
+
+```{r}
+ast((x + y) * z)
+ast(1 + 2 + 3)
+```
+
+_What does the call tree of an if statement with multiple else if conditions look like? Why?_
+
+```{r}
+ast(
+  if (FALSE) "a"
+  else if (TRUE) "b"
+  else if (FALSE) "c"
+)
+```
+
+Like a tree with one branch with three children. The first evaluates to either `TRUE` or `FALSE`; the second gets evaluated if the first is `TRUE`; the third gets evaluated if the first is `FALSE`. Multiple `if else` statements simply expand on this logic. 
+
+The data structures contained in ASTs are __expressions__.
+
+> An expression is any member of the set of base types created by parsing code: constant scalars, symbols, call objects, and pairlists. These are the data structures used to represent captured code from `expr()`.
+
+- __scalar constants__ are either `NULL` or a length-1 atomic vector like `TRUE`, `1L`, `2.5` or `"x"`.
+
+    Constants are self-quoting in the sense that the expression used to represent a constant is the same constant.
+
+    ```{r}
+    identical(expr(TRUE), TRUE)
+    identical(expr("x"), "x")
+    typeof(expr("x"))
+    ```
+
+    > The symbol type is not vectorised, i.e. a symbol is always length 1. If you want multiple symbols, you'll need to put them in a list, using (e.g.) `rlang::syms()`.
+
+- __symbols__ are the names of objects like `x`, `mtcars`, or `mean`. The terms "symbol" and "name" are sometimes used interchangeably.
+
+    You can create a symbol in two ways: by capturing code that references an object with `rlang::expr()`, or turning a string into a symbol with `rlang::sym()`.
+    
+    ```{r}
+    identical(expr(x), sym("x"))
+    typeof(expr(x))
+    ```
+    
+- __call objects__ represent captured _function calls_. 
+
+    > Call objects are a special type of list —i.e. _pairlists_— where the first component specifies the function to call (usually a symbol), and the remaining elements are the arguments for that call. Call objects create branches in the AST, because calls can be nested inside other calls.
+
+    ```{r}
+    ast(read.table("important.csv", row.names = FALSE))
+    x <- expr(read.table("important.csv", row.names = FALSE))
+    is.call(x)
+    ```
+    
+    _Subsetting_
+    
+    The first element of the call object is the function being called.
+    
+    ```{r}
+    x[[1]]
+    x[[2]]
+    x[[3]]
+    ```
+
+    You can determine the number of arguments in a call object by subtracting one from its length:
+    
+    ```{r}
+    length(x) - 1
+    ```
+
+    Calls can be modified in the same way as lists:
+
+    ```{r}
+    as.list(x)
+    x$header <- TRUE
+    x
+    as.list(x)
+    ```
+
+    _Constructing_
+    
+    > You can construct a call object from its components using `rlang::call2()`. The first argument is the name of the function to call (either as a string, a symbol, or another call). The remaining arguments will be passed along to the call
+
+```{r}
+construct <- call2("mean", x = expr(x), na.rm = TRUE)
+construct
+x <- 0:10
+eval(construct)
+```
+
+__Exercise__
+
+_Construct the expression `if(x > 1) "a" else "b"` using multiple calls to `call2()`. How does the code structure reflect the structure of the AST?_
+
+```{r}
+x <- call2(">", expr(x), 1)
+call2("if", x, "a", "b")
+```
+
+### Parsing and grammar
+
+> The process by which a computer language takes a string and constructs an expression is called __parsing__, and is governed by a set of rules known as a __grammar__.
+
+Infix functions introduce two sources of ambiguity which are ultimately resolved with _operator precedence_ and _associativity_.
+
+_What does 1 + 2 * 3 yield?_ 9 or 7?
+
+The precedence of arithmetic operators is usually easy to predict (i.e. because of high school math).
+
+```{r}
+ast(1 + 2 * 3)
+```
+
+The precedence of other operators might be harder to anticipate:
+
+```{r}
+ast(!x %in% y)
+```
+
+The precedence of operators is described in `?Syntax`. But if there's any confusion, you can always use parentheses.
+
+```{r}
+ast((1 + 2) * 3)
+```
+
+The second source of ambiguity is introduced by repeated usage of the same infix function. For example, is `1 + 2 + 3 `equivalent to `(1 + 2) + 3` or to `1 + (2 + 3)`?
+
+Most operators in R are _left-associative_, the operators on the left are evaluated first.
+
+```{r}
+ast(1 + 2 + 3)
+```
+
+There are two exceptions: _exponentiation_ and _assignment_.
+
+```{r}
+ast(2 ^ 2 ^ 3)
+ast(x <- y <- z)
+```
+
+> Most of the time you type code into the console, and R takes care of turning the characters you've typed into an AST. But occasionally you have code stored in a string, and you want to parse it yourself. You can do so using `rlang::parse_expr()` or `base::parse()`
+
+```{r}
+parse_expr("y <- x + 10")
+```
+
+> `parse_expr()` always returns a single expression. If you have multiple expression separated by `;` or `\n`, you’ll need to use `rlang::parse_exprs()`. It returns a list of expressions:
+
+```{r}
+parse_exprs("a <- 1; a + 1")
+```
+
+> The inverse of parsing is deparsing: given an expression, you want the string that would generate it. This happens automatically when you print an expression, and you can get the string with `rlang::expr_text()`
+
+```{r}
+x <- parse_exprs("a <- 1; a + 1")
+lapply(x, rlang::expr_text)
+```
+
+__Exercises__
+
+_`=` can also be used in two ways. Construct a simple example that shows both uses._
+
+```{r}
+ast({ a = list(x = 1:3) })
+```
+
+_Does -2^2 yield 4 or -4? Why?_
+
+```{r}
+-2^2
+```
+
+This happens because `^` has a higher operator precedence than `-`.
+
+_Why does x1 <- x2 <- x3 <- 0 work?_ It works because assignment is _right_-associate and because `<-` invisibly returns the value on the right hand side.
+
+```{r}
+ast(x1 <- x2 <- x3 <- 0 )
+```
+
+### Walking AST with recursive functions
+
+```{r}
+
+```
+
+
+## Quasiquotation
+
+> Where __quotation__ is the act of capturing an unevaluated expression, __unquotation__ is the ability to selectively evaluate parts of an otherwise quoted expression. Together, this is called quasiquotation. Quasiquotation makes it easy to create functions that combine code written by the function's author with code written by the function's user. This helps to solve a wide variety of challenging problems.
+
+Arguments in a function can be __evaluated__ or __quoted__ (i.e. captured by the function and then processed in some custom way).
+
+For example:
+
+- The `paste()` function evaluates all its arguments:
+
+    ```{r}
+    a <- "string"
+    b <- "of"
+    c <- "words"
+    paste(a, b, c)
+    ```
+
+- The following function quotes all its arguments:
+
+    ```{r}
+    paste_quo <- function(...) {
+      args <- rlang::ensyms(...)
+      paste(lapply(args, as.character), collapse = " ")
+    }
+    
+    paste_quo(a, b, c)
+    ```
+    
+    We need to _unquote_ the arguments explicitly, which we can do by `!!` operator (pronounced bang-bang).
+    
+    ```{r}
+    paste_quo(!!a, !!b, !!c)
+    ```
+    
+__Exercise__
+
+_For each function in the following tidyverse code, identify which arguments are quoted and which are evaluated._
+
+```{r, eval=FALSE}
+library(dplyr)                   ## dplyr is quoted
+library(ggplot2)                 ## ggplot2 is quoted
+
+by_cyl <- mtcars %>%             ## mtcars is evaluated
+  group_by(cyl) %>%              ## cyl is quoted
+  summarise(mean = mean(mpg))    ## mpg is quoted
+
+ggplot(by_cyl, aes(cyl, mean)) + ## cyl and mean are quoted
+  geom_point() 
+```
+
+### Quoting
+
+__Capturing expressions__
+
+- `expr()` captures its argument exactly as provided
+
+    ```{r}
+    expr(1 + 2)
+    ```
+
+- `enexpr()` is useful inside functions because it looks at the internal promise object that powers _lazy evaluation_.
+
+```{r}
+f1 <- function(x) expr(x)
+f2 <- function(x) enexpr(x)
+f1(x)
+f2(x)
+```
+
+    In other words, when you `enexpr()` an argument, you turn it into an expression.
+    
+    We use `enexprs()` (plural) to capture all arguments in `...`:
+    
+```{r}
+f3 <- function(...) enexprs(...)
+f3(x = 1 + 2, y = a + b)
+```
+    
+> In short, use `enexpr()` and `enexprs()` to capture the expressions supplied as arguments by the user. Use `expr()` and `exprs()` to capture expressions that you supply.
+
+```{r, echo=FALSE}
+data.frame(
+  Developer = c("`expr()`", "`exprs()`"),
+  User = c("`enexpr()`", "`enexprs()`")
+  ) %>%
+  `rownames<-`(c("One expression", "Many expressions")) %>% 
+  knitr::kable(caption = "`rlang` quasiquoting functions") %>% 
+  kableExtra::kable_styling(
+    full_width = FALSE, 
+    bootstrap_options = "bordered"
+    )
+```
+
+__Capturing symbols__
+
+> Sometimes you only want to allow the user to specify a variable name, not an arbitrary expression. In this case, you can use `ensym()` or `ensyms()`. These are variants of `enexpr()` and `enexprs()` that check the captured expression is either symbol or a string (which is converted to a symbol). `ensym()` and `ensyms()` throw an error if given anything else.
+
+```{r, error=TRUE}
+f <- function(...) ensyms(...)
+f(a, "a")
+f(1 + 2)
+```
+
+__Base R__
+
+These functions have equivalents in base R. The main difference is that the base equivalents don't support unquoting. Thus, they are quoting functions (as opposed to quasiquoting functions).
+
+_Summary_
+
+```{r, echo=FALSE}
+data.frame(
+  Developer = c("`quote()`", "`substitute()`"),
+  User = c("`alist()`", "as.list(substitute(...()))")
+  ) %>%
+  `rownames<-`(c("One expression", "Many expressions")) %>% 
+  knitr::kable(caption = "base R quoting functions") %>% 
+  kableExtra::kable_styling(
+    full_width = FALSE, 
+    bootstrap_options = "bordered"
+    )
+```
+
+```{r}
+enexpr
+```
+
+__Exercises__
+
+_How is `expr()` implemented? Look at its source code_
+
+```{r}
+body(expr)
+```
+
+```{r}
+enexpr(x)
+```
+
+_What are the differences between `exprs()` and `alist()`? Read the documentation for the named arguments of `exprs()` to find out._
+
+`exprs()` has additional arguments that allow you to specify how to handle unnamed arguments, empty arguments, etc.
+
+```{r}
+formals(alist)
+formals(exprs)
+```
+
+### Unquoting
+
+> Unquoting allows you to selectively evaluate parts of the expression that would otherwise be quoted, which effectively allows you to merge ASTs using a template AST.
+
+```{r}
+x <- 5
+expr(1 + x)
+expr(1 + !!x)
+```
+
+The following diagram shows how this works. `!!` introduces a placeholder in the AST, and this placeholder then gets replaced by another AST.
+
+```{r}
+x <- 5
+x1 <- expr(x + 1)
+x2 <- expr(x + 2)
+expr(!!x1 / !!x2)
+```
+
+
+```{r, echo=FALSE, out.width="40%"}
+knitr::include_graphics(
+"https://d33wubrfki0l68.cloudfront.net/321539c223c071eb51ce7ebb0dcad1b5a17961ff/5434b/diagrams/quotation/infix.png"
+)
+```
+
+Note that if we simply pasted the expressions together, we would have ended with a very different AST.
+
+```{r}
+ast(x + 1 / x + 2)  ## ast() quotes its first argument.
+```
+
+`!!` is most commonly used to replace the arguments to a function, but you can also use it to replace the function. However, operator precedence makes this tricky: `expr(!!f(x, y))` unquotes the result of `f(x, y)`, so you need to use parentheses around the `!!f`.
+
+```{r}
+f <- expr(foo)
+expr((!!f)(x, y))
+```
+
+If the extra set of parentheses looks to clunky, you might want to try using `call2()` instead.
+
+```{r}
+f <- expr(pkg::foo)
+call2(f, expr(x), expr(y))
+```
+
+
+```{r, echo=FALSE, out.width="40%"}
+knitr::include_graphics(
+"https://d33wubrfki0l68.cloudfront.net/9e60ab46ad3c470bc27437b05fcd53fef781039d/17433/diagrams/quotation/bang-bang-bang.png"
+)
+```
+
+`!!` is a one-to-one replacement; `!!!` ("unquote-splice") is a one-to-many replacement. This takes a list of expressions and inserts them at the location of `!!!`.
+
+```{r}
+xs <- exprs(1, a, -b)
+expr(f(!!xs, y))
+```
+
+
+
+
+
+From R's perspective, `!!` and `!!!` are simply the repeated application of `!`. EXPAND
+
+```{r}
+!!TRUE
+!!!TRUE
+```
+
+### `...`
+
+
+
+### Examples
+
+__Map-reduce to generate code__
+
+__`curve2`__
+
+
+__Slicing an array__

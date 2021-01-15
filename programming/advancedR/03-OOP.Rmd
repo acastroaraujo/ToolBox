@@ -127,7 +127,7 @@ typeof(1:10)
 typeof(iris)
 ```
 
->Base types do not form an OOP system because functions that behave differently for different base types are primarily written in C code that uses switch statements.
+> Base types do not form an OOP system because functions that behave differently for different base types are primarily written in C code that uses switch statements.
 
 Here's an example of R base objects and their C equivalents:
 
@@ -184,17 +184,17 @@ R users talk about a "numeric" type, which has become a permanent source of conf
 
 2. S3 and S4 systems use "numeric" for picking methods that work with either "double" or "integer" types.
 
-```{r}
-sloop::s3_class(1)
-sloop::s3_class(1L)
-```
+    ```{r}
+    sloop::s3_class(1)
+    sloop::s3_class(1L)
+    ```
 
 3. Finally, we are sometimes interested in objects that behave like numbers. For example, factors are of type "integer" but don't behave like numbers.
 
-```{r}
-typeof(iris$Species)
-is.numeric(iris$Species)
-```
+    ```{r}
+    typeof(iris$Species)
+    is.numeric(iris$Species)
+    ```
 
 ## S3
 

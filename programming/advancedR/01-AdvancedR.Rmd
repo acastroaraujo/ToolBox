@@ -1688,7 +1688,7 @@ The main purspose of active bindings becomes clear when using the R6 OOP system.
 
 ___The function environment___
 
->A function _binds_ the current environment when it is created. This is called the _function environment_, and is used for lexical scoping. Across computer languages, functions that capture (or enclose) their environments are called __closures__, which is why this term is often used interchangeably with function in R’s documentation.
+> A function _binds_ the current environment when it is created. This is called the _function environment_, and is used for lexical scoping. Across computer languages, functions that capture (or enclose) their environments are called __closures__, which is why this term is often used interchangeably with function in R's documentation.
 
 Note that the common error `object of type 'closure' is not subsettable` means that you're probably trying to subset a function instead of a vector.
 
